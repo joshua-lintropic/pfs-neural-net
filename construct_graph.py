@@ -21,6 +21,33 @@ def to_Graph(class_props: np.ndarray) -> gnn.BipartiteData:
     return gnn.BipartiteData(edge_index.cuda(), x_h.cuda(), x_g.cuda(), edge_attr.cuda(), u.cuda())
 
 
+# This function varies from problem to problem. 
+# The following example only works for the PFS problem
+# def to_Graph(indices,properties):
+#     # properties: galaxy properties useful for g nodes
+#     # indices: pre-calculated connectivity
+#     properties = np.array(properties)
+#     edge_attr = []
+#     e_h = [] # start from h nodes
+#     e_g = [] # end at g nodes
+
+#     # Graph Connectivity Related to the Problem
+#     for i,index in enumerate(indices):
+#         for j in range(len(index)):
+#             if index[j]<2394: 
+#                 e_h.append(index[j])
+#                 e_g.append(k)
+#                 edge_attr.append(np.zeros(n_x)) # Edge initialization
+
+#     edge_attr = torch.tensor(edge_attr).float()
+#     edge_index = torch.tensor([e_h,e_g],dtype=torch.long)
+
+#     x_h = torch.zeros(2394,n_h).float()
+#     x_g = torch.tensor(properties[reachable]).float()
+#     u=torch.tensor([np.zeros(n_u)]).float()
+#     data = gnn.BipartiteData(edge_index.cuda(),x_h.cuda(),x_g.cuda(),edge_attr.cuda(),u.cuda())
+#     return data
+
 if __name__ == '__main__':
     # class properties file:  utils‑<case>.txt   (n_g rows)
     # utils = np.loadtxt(f'initial_info/utils-{case}.txt')   # shape (n_g, ≥2)
