@@ -21,7 +21,7 @@ def Lossfun(time,graph,penalty=0,finaloutput=False):
     spent_time = scatter(time,src,dim_size=x_h.size(0),reduce='sum')
     # Overtime
     overtime = spent_time-total_time
-    delta = leaky(overtime).view(1,2394) 
+    delta = leaky(overtime).view(1,nfibers) 
     # Penalty
     time_constraint = torch.sum(penalty*delta*delta)
     # Reward
@@ -43,4 +43,4 @@ def Lossfun(time,graph,penalty=0,finaloutput=False):
         totutils = torch.min(completeness)
         #print(clsnum) #number observed in each class
         #print(clsall) #total number in each class
-    return -totutils+time_constraint,totutils,totnum,torch.sum(F.relu(overtime))/(2394*total_time),torch.sum(F.relu(-overtime))/(2394*total_time)
+    return -totutils+time_constraint,totutils,totnum,torch.sum(F.relu(overtime))/(nfibers*total_time),torch.sum(F.relu(-overtime))/(nfibers*total_time)
