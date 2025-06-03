@@ -21,6 +21,7 @@ def to_Graph(properties):
     edge_attr = torch.tensor(edge_attr).float()
     edge_index = torch.tensor([e_h,e_g],dtype=torch.long)
 
+    u=torch.tensor([np.zeros(n_u)]).float()
     data = gnn.BipartiteData(edge_index.cuda(),x_h.cuda(),x_g.cuda(),edge_attr.cuda(),u.cuda())
     return data
 
