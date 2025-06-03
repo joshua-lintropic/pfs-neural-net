@@ -7,9 +7,9 @@ import os
 
 def to_Graph(properties):
     x_h = torch.zeros(nfibers, n_h).float().cuda()
-    x_g = torch.tensor(properties).float().cuda() # all galaxies reachable now
+    x_g = torch.tensor(properties).float().cuda()
 
-    # create every edge h <-> g
+    # all classes are observable by all fibers now
     num_h = x_h.size(0)
     num_g = x_g.size(0)
     e_h = []
@@ -59,5 +59,6 @@ if __name__ == '__main__':
         os.system('mkdir graphs-%s'%case)
     for k in range(len(names)):
         indices = np.loadtxt(names[k],dtype=int)
-        graph = to_Graph(indices,utils)
+        # graph = to_Graph(indices,utils)
+        graph = to_Graph(utils)
         torch.save(graph,names[k].replace('pairs-%s/pair'%case,'graphs-%s/graph'%case).replace('txt','pt'))
