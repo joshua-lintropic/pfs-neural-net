@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch_scatter import scatter_mean,scatter
 import torch.nn.functional as F
+from config import *
 
 def Lossfun(time,graph,penalty=0,finaloutput=False):
     total_time = 42 # total number of visits
