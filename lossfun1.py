@@ -9,8 +9,6 @@ sharpness = 20
 noiselevel = 0.3 #[0.2,0.3,0.2,0.3][idx]
 
 def Lossfun(assign, graph, penalty=0., finaloutput=False):
-    total_time = 8 # TODO: between 6 to 10
-    leaky = nn.LeakyRelu(0.)
     bt = graph.batch
     src, tgt = graph.edge_index
     timereq = graph.x_g[:, 0] 
@@ -22,16 +20,18 @@ def Lossfun(assign, graph, penalty=0., finaloutput=False):
         noise = 0.
     assign_hat = torch.sigmoid((assign + noise - 0.5) * sharpness)
 
+    # calculate amount of flow to each class
     class_cnt = scatter(assign_hat, tgt, dim_size=timereq.size(0), reduce='sum')
-
     time_per_edge = assign_hat * timereq[tgt]
     fibre_time = scatter(time_per_edge, src, dim_size=graph.x_h.size(0), reduce='sum')
 
+    # square ReLU penalty
     overtime   = fibre_time - Tmax
     time_term  = penalty * (F.relu(overtime).pow(2)).sum()
 
-    completeness = class_cnt / totgalx.clamp_min(1.)   # avoid /0
-    util        = completeness.min()
+    # determine objective
+    completeness = class_cnt / totgalx.clamp_min(1.) # avoid /0
+    util = completeness.min()
 
     if finaloutput:
         # TODO: modify sharpness? 
