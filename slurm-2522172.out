@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/home/jl5824/pfs-neural-net/construct_graph.py", line 92, in <module>
+    graph = to_Graph(utils)
+            ^^^^^^^^^^^^^^^
+  File "/home/jl5824/pfs-neural-net/construct_graph.py", line 10, in to_Graph
+    edge_attr = torch.zeros(edge_index.size(1), n_x)
+                            ^^^^^^^^^^
+UnboundLocalError: cannot access local variable 'edge_index' where it is not associated with a value

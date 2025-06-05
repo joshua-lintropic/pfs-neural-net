@@ -1,24 +1,37 @@
 import torch, numpy as np, gnn, os, glob
 from config import *
 
-def to_Graph(class_props: np.ndarray) -> gnn.BipartiteData:
-    n_classes   = class_props.shape[0]
+def to_Graph(properties):
+    properties = np.asarray(properties, dtype=np.float32)
+    nclasses = properties.shape[0]
 
-    e_h, e_g, edge_attr = [], [], []
-    for h in range(nfibers):
-        for g in range(n_classes):
-            e_h.append(h)
-            e_g.append(g)
-            edge_attr.append(np.zeros(n_x, dtype=np.float32))
+    e_h = np.repeat(np.arange(nfibers), nclasses)
+    e_g = np.tile(np.arange(nclasses), nfibers)
+    edge_index = torch.tensor([e_h,e_g], dtype=torch.long)
+    edge_attr = torch.zeros(edge_index.size(1), n_x)
 
-    edge_index = torch.tensor([e_h, e_g], dtype=torch.long)
-    edge_attr  = torch.tensor(edge_attr).float()
+    x_h = torch.zeros(nfibers, n_h)
+    x_g = torch.tensor(properties)
+    u = torch.zeros(1, n_u)
 
-    x_h = torch.zeros(nfibers, n_h)                    # (nfibers × n_h)
-    x_g = torch.tensor(class_props, dtype=torch.float) # (n_g × ?)
-    u   = torch.zeros(1, n_u)
+    data = gnn.BipartiteData(edge_index.cuda(), x_h.cuda(), x_g.cuda(), edge_attr.cuda(), u.cuda())
 
-    return gnn.BipartiteData(edge_index.cuda(), x_h.cuda(), x_g.cuda(), edge_attr.cuda(), u.cuda())
+    # # complete bipartite graph now
+    # for h in range(nfibers):
+    #     for g in range(n_classes):
+    #         e_h.append(h)
+    #         e_g.append(g)
+    #         edge_attr.append(np.zeros(n_x, dtype=np.float32))
+
+    # edge_attr = torch.tensor(edge_attr).float()
+    # edge_index = torch.tensor(edge_attr).float()
+
+    # x_h = torch.zeros(nfibers, n_h).float()
+    # x_g = torch.tensor(properties).float()
+    # u = torch.zeros(1, n_u)
+    # data = gnn.BipartiteData(edge_index.cuda(), x_h.cuda(), x_g.cuda(), edge_attr.cuda(), u.coda())
+
+    return data
 
 
 # This function varies from problem to problem. 
@@ -36,14 +49,14 @@ def to_Graph(class_props: np.ndarray) -> gnn.BipartiteData:
 #         for j in range(len(index)):
 #             if index[j]<2394: 
 #                 e_h.append(index[j])
-#                 e_g.append(k)
+#                 e_g.append(k) # k is never defined either? 
 #                 edge_attr.append(np.zeros(n_x)) # Edge initialization
 
 #     edge_attr = torch.tensor(edge_attr).float()
 #     edge_index = torch.tensor([e_h,e_g],dtype=torch.long)
 
 #     x_h = torch.zeros(2394,n_h).float()
-#     x_g = torch.tensor(properties[reachable]).float()
+#     x_g = torch.tensor(properties[reachable]).float() # reachable is a mask but never defined? 
 #     u=torch.tensor([np.zeros(n_u)]).float()
 #     data = gnn.BipartiteData(edge_index.cuda(),x_h.cuda(),x_g.cuda(),edge_attr.cuda(),u.cuda())
 #     return data
@@ -52,6 +65,8 @@ if __name__ == '__main__':
     # class properties file:  utils‑<case>.txt   (n_g rows)
     # utils = np.loadtxt(f'initial_info/utils-{case}.txt')   # shape (n_g, ≥2)
 
+    # first column is number of galaxies (N_i)
+    # second column is required hours (T_i)
     utils = np.array([
         [68.2 * 10**3,  2],
         [69.3 * 10**3,  2],

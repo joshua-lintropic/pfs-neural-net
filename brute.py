@@ -110,7 +110,7 @@ if __name__ == '__main__':
             if method == 'SGD':
                 optimizer = optim.SGD([c_all],lr=lr_pre)
             
-            for i_epoch in range(nepoch:
+            for i_epoch in range(nepoch):
                 time = Tmax*torch.sigmoid(c_all)
                 if train:
                     noise = noiselevel*(torch.rand(time.shape).float().cuda()-0.5)
