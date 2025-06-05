@@ -44,5 +44,8 @@ if __name__ == '__main__':
     if not os.path.exists('graphs-%s/'%case):
         os.system('mkdir graphs-%s'%case)
 
-    graph = to_Graph(utils)
-    torch.save(graph, f'graphs-{case}/graph-full.pt')
+    module = {'train': ntrain, 'valid': nvalid, 'test': ntest}
+    for t, n in module.items(): 
+        for i in range(n):
+            graph = to_Graph(utils)
+            torch.save(graph, f'graphs-{case}/graph-{i}-{t}.pt')
