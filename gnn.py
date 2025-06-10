@@ -1,7 +1,6 @@
 import torch
 import torch_geometric
 import torch_scatter
-from typing import List
 
 # === FEATURE DIMENSIONS === 
 F_e = 10       # intermediate edge embeddings
@@ -115,7 +114,7 @@ class BipartiteData(torch_geometric.data.Data):
         else:
             return super().__inc__(key, value)
 
-class Loader(torch.geometric.data.Dataset):
+class Loader(torch_geometric.data.Dataset):
     """
     Simple Dataset wrapping a list of BipartiteData graphs.
     """

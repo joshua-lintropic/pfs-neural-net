@@ -10,9 +10,10 @@
 #SBATCH --mail-type=end             # send email when job ends
 #SBATCH --mail-user=jl5824@princeton.edu
 
+cd ..
 module purge
 module load anaconda3/2024.10
-conda activate torch-env
+conda activate torch-gnn
 
-python construct_graph.py
-python train.py 2> error.log
+python graph.py
+python train.py

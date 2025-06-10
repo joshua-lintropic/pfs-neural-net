@@ -1,5 +1,0 @@
-Traceback (most recent call last):
-  File "/home/jl5824/pfs-neural-net/construct_graph.py", line 49, in <module>
-    for t, n in module: 
-        ^^^^
-ValueError: too many values to unpack (expected 2)

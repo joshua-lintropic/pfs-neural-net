@@ -84,7 +84,7 @@ if __name__ == '__main__':
     filters out galaxies with no observing fibers, converts each to a
     BipartiteData graph, and saves to 'graphs/graph-<i>.pt'.
     """
-    ngraph = 25
+    ngraph = 1
     utils = np.loadtxt('utils.txt')
     
     for igraph in range(ngraph):
