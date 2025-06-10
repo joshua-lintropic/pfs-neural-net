@@ -113,9 +113,9 @@ if __name__ == '__main__':
 
     # --- Data loading ---
     utils = np.loadtxt('utils.txt')
-    graphs = [torch.load(f'graphs/graph-{i}.pt') for i in range(ntrain)]
+    graphs = [torch.load(f'graphs/graph-{i}.pt', weights_only=False) for i in range(ntrain)]
     dataset = g.Loader(graphs_list=graphs)
-    dataloader = torch_geometric.data.DataLoader(dataset, batch_size=batchsize)
+    dataloader = torch_geometric.loader.DataLoader(dataset, batch_size=batchsize)
 
     # Precompute batch index tensors for edges/nodes
     train_be, train_bs, train_bt = [], [], []

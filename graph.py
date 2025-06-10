@@ -68,6 +68,7 @@ def to_Graph(properties):
     #         k += 1
 
     # Convert to tensors and sort edges by source id (fiber)
+    edge_attr = np.array(edge_attr)
     edge_attr = torch.tensor(edge_attr, dtype=torch.float)
     edge_index = torch.tensor([e_s, e_t], dtype=torch.long)
     order = torch.argsort(edge_index[0])
