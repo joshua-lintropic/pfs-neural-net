@@ -10,7 +10,10 @@ Each graph represents which galaxies can be observed by which fibers,
 as a bipartite graph with separate source (fibers) and target (galaxies) nodes.
 """
 
-def to_Graph(indices, properties, maxtime=30):
+# === CONSTANTS ===
+NFIBERS = 2000
+
+def to_Graph(properties):
     """
     Convert index and property arrays into a BipartiteData graph.
 
@@ -42,18 +45,27 @@ def to_Graph(indices, properties, maxtime=30):
     k = 0
     reachable = np.zeros(len(properties), dtype=bool)
 
-    # Build edges: each valid fiber->galaxy pairing yields an edge
-    for i, index in enumerate(indices):
-        has_edge = False
-        for fiber_idx in index:
-            if fiber_idx < 2394:
-                has_edge = True
-                e_s.append(fiber_idx)
-                e_t.append(k)
-                edge_attr.append(np.zeros(gnn.F_e))
-        if has_edge:
-            reachable[i] = True
-            k += 1
+    # Build complete edges: every fiber->class yields an edge
+    for i in range(properties.shape[0]):
+        for fiber_idx in range(NFIBERS):
+            e_s.append(fiber_idx)
+            e_t.append(k)
+            edge_attr.append(np.zeros(gnn.F_e))
+        reachable[i] = True
+        k += 1
+
+    # # Build edges: each valid fiber->galaxy pairing yields an edge
+    # for i, index in enumerate(indices):
+    #     has_edge = False
+    #     for fiber_idx in index:
+    #         if fiber_idx < 2394:
+    #             has_edge = True
+    #             e_s.append(fiber_idx)
+    #             e_t.append(k)
+    #             edge_attr.append(np.zeros(gnn.F_e))
+    #     if has_edge:
+    #         reachable[i] = True
+    #         k += 1
 
     # Convert to tensors and sort edges by source id (fiber)
     edge_attr = torch.tensor(edge_attr, dtype=torch.float)
@@ -84,19 +96,10 @@ if __name__ == '__main__':
     filters out galaxies with no observing fibers, converts each to a
     BipartiteData graph, and saves to 'graphs/graph-<i>.pt'.
     """
-    ngraph = 1
+    ngraph = 25
     utils = np.loadtxt('utils.txt')
     
     for igraph in range(ngraph):
-        # Load fiber indices for this graph
-        indices = np.loadtxt(f'pairs/pair-{igraph}.txt', dtype=int)
-        mask = np.ones(len(indices), dtype=bool)
-
-        # Exclude galaxies with zero valid fibers
-        for i, idx_list in enumerate(indices):
-            if np.sum(idx_list < 2394) == 0:
-                mask[i] = False
-
         # Build graph and save
-        graph = to_Graph(indices[mask], utils[mask])
+        graph = to_Graph(utils)
         torch.save(graph, f'graphs/graph-{igraph}.pt')
