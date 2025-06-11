@@ -11,6 +11,7 @@ as a bipartite graph with separate source (fibers) and target (galaxies) nodes.
 """
 
 # === CONSTANTS ===
+NCLASSES = 12
 NFIBERS = 2000
 
 def to_Graph(properties):
@@ -62,7 +63,7 @@ def to_Graph(properties):
     edge_index = edge_index[:, order]
 
     # Node features: fibers (zeros) and galaxies (properties of reachable ones)
-    x_s = torch.zeros(2394, gnn.F_xs, dtype=torch.float)
+    x_s = torch.zeros(NCLASSES, gnn.F_xs, dtype=torch.float)
     x_t = torch.tensor(properties[reachable], dtype=torch.float)
     u = torch.zeros(1, gnn.F_u, dtype=torch.float)
 

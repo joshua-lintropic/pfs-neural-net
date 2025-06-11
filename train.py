@@ -171,7 +171,7 @@ if __name__ == '__main__':
                 loss, gu, nu, ot, ut = Loss(time_pred, graph, penalty=penalty, batchsize=batchsize)
                 loss.backward()
                 if train:
-                    torch.optimizer.step()
+                    optimizer.step()
                 print(f"Batch {i_batch}: -U={-loss.item():.1f}, G={gu:.1f}, N={nu:.1f}, +OT={ot:.1f}, +UT={ut:.1f}")
             penalty *= rate
         torch.save(gnn.state_dict(), 'model_gnn' + ID + '.pth')

@@ -28,7 +28,7 @@ class Argmax(torch.autograd.Function):
             Tensor: One-hot encoded tensor of the same shape as input, with
             a 1 at the index of the maximum value in the last dimension.
         """
-        prob, indices = torch.max(input, dim=1)
+        _, indices = torch.max(input, dim=1)
         result = torch.nn.functional.one_hot(indices, num_classes=F_e_out).float()
         context.save_for_backward(input, result)
         return result
