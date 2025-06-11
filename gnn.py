@@ -6,7 +6,7 @@ import torch_scatter
 F_e = 10       # intermediate edge embeddings
 F_u = 10       # global node
 F_xs = 10      # source nodes
-F_xt = 5       # target nodes
+F_xt = 3       # target nodes
 F_e_out = 5    # final edge output
 
 class Argmax(torch.autograd.Function):
@@ -165,6 +165,16 @@ class EdgeModel(torch.nn.Module):
             Tensor: Updated edge features [E, F_e].
         """
         src, tgt = edge_index
+
+        print("\nEDGE MODEL FORWARD")
+        print(f"src ({src.shape}):", src)
+        print(f"tgt ({tgt.shape}):", tgt)
+        print(f"x_s ({x_s.shape}):", x_s)
+        print(f"x_t ({x_t.shape}):", x_t)
+        print(f"edge_attr ({edge_attr.shape}):", edge_attr)
+        print(f"u ({u.shape}):", u)
+        print()
+
         h = torch.cat([x_s[src], x_t[tgt], edge_attr, u[batch_e]], dim=-1)
         return self.edge_mlp(h)
 

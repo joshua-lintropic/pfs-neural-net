@@ -41,7 +41,7 @@ def to_Graph(properties):
     properties = np.array(properties)
     edge_attr = []
     e_s = []  # source indices (fibers)
-    e_t = []  # target indices (galaxies)
+    e_t = []  # target indices (classes)
     k = 0
     reachable = np.zeros(len(properties), dtype=bool)
 

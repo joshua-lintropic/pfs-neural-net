@@ -139,14 +139,18 @@ if __name__ == '__main__':
         for epoch in range(nepoch_pre):
             for i_batch, graph in enumerate(dataloader):
                 gnn.zero_grad()
+                print("\nTRAIN.PY")
+                print(f"i_batch:", i_batch)
+                print(f"train_be ({len(train_be[i_batch])}):", train_be[i_batch])
+                print(f"train_bs ({len(train_bs[i_batch])}):", train_bs[i_batch])
+                print(f"train_bt ({len(train_bt[i_batch])}):", train_bt[i_batch])
+                print()
                 time_pred, _ = gnn(graph, train_be[i_batch], train_bs[i_batch], train_bt[i_batch])
                 loss, gu, nu, ot, ut = Loss(time_pred, graph, penalty=penalty_pre, batchsize=batchsize)
                 loss.backward()
                 print(f"Batch {i_batch}: -U={-loss.item():.1f}, G={gu:.1f}, N={nu:.1f}, +OT={ot:.1f}, +UT={ut:.1f}")
                 if train:
                     optimizer.step()
-        with open('log.txt', 'a') as f:
-            f.write(f'about to save mode_gnn_pre{ID}.pth')
         torch.save(gnn.state_dict(), 'model_gnn_pre' + ID + '.pth')
         print('Pre-Training Finished')
 
