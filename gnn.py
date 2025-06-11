@@ -316,7 +316,7 @@ class Block(torch.nn.Module):
     def forward(self, x_s, x_t, edge_index, edge_attr, u,
                 batch_e, batch_s, batch_t):
         """
-        Sequentially applies: edge -> source-node -> target-node -> global updates.
+        Sequentially applies: edge -> source -> target -> global updates.
 
         Returns:
             Tuple of updated (x_s, x_t, edge_attr, u).
@@ -395,7 +395,7 @@ class GNN(torch.nn.Module):
         x_s, x_t, edge_attr, u = self.block_last(
             x_s, x_t, edge_index, edge_attr, u, batch_e, batch_s, batch_t)
 
-        prob = F.softmax(edge_attr, dim=-1)
+        prob = torch.nn.functional.softmax(edge_attr, dim=-1)
         time = torch.sum(prob * self.classes, dim=-1)
 
         if train:
