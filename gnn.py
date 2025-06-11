@@ -89,15 +89,21 @@ class BipartiteData(torch_geometric.data.Data):
         u (Tensor): Global features [B, F_u].
     """
     def __init__(self, edge_index, x_s, x_t, edge_attr, u):
+        # super().__init__(edge_index=edge_index, x_s=x_s, x_t=x_t, edge_attr=edge_attr, u=u)
         super(BipartiteData, self).__init__()
-        self.edge_index = edge_index.cuda()
-        self.x_s = x_s.cuda()
-        self.x_t = x_t.cuda()
-        self.edge_attr = edge_attr.cuda()
-        self.u = u.cuda()
-        self.num_nodes = len(self.x_t)  # dummy to suppress warnings
+        if edge_index is not None:
+            self.edge_index = edge_index.cuda()
+        if x_s is not None:
+            self.x_s = x_s.cuda()
+        if x_t is not None:
+            self.x_t = x_t.cuda()
+            self.num_nodes = len(self.x_t)  # dummy to suppress warnings
+        if edge_attr is not None:
+            self.edge_attr = edge_attr.cuda()
+        if u is not None:
+            self.u = u.cuda()
 
-    def __inc__(self, key, value):
+    def __inc__(self, key, value, *args):
         """
         Defines how to increment indices when batching multiple graphs.
 
@@ -112,7 +118,7 @@ class BipartiteData(torch_geometric.data.Data):
             # Shift sources by N_s, targets by N_t when batching
             return torch.tensor([[self.x_s.size(0)], [self.x_t.size(0)]]).cuda()
         else:
-            return super().__inc__(key, value)
+            return super().__inc__(key, value, *args)
 
 class Loader(torch_geometric.data.Dataset):
     """
