@@ -31,6 +31,7 @@ class Argmax(torch.autograd.Function):
         prob, indices = torch.max(input, dim=1)
         result = torch.nn.functional.one_hot(indices, num_classes=F_e_out).float()
         context.save_for_backward(input, result)
+        return result
 
     @staticmethod
     def backward(context, grad_output):
