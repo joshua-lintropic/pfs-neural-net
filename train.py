@@ -100,7 +100,7 @@ if __name__ == '__main__':
     sharpness = 20
     noiselevel = [0.2, 0.3, 0.2, 0.3][idx]
     train = False
-    nepoch_pre = 0
+    nepoch_pre = 1
     nepoch = 1
     lr_pre = 5e-4
     penalty_pre = 1e-1
@@ -145,6 +145,8 @@ if __name__ == '__main__':
                 print(f"Batch {i_batch}: -U={-loss.item():.1f}, G={gu:.1f}, N={nu:.1f}, +OT={ot:.1f}, +UT={ut:.1f}")
                 if train:
                     optimizer.step()
+        with open('log.txt', 'a') as f:
+            f.write(f'about to save mode_gnn_pre{ID}.pth')
         torch.save(gnn.state_dict(), 'model_gnn_pre' + ID + '.pth')
         print('Pre-Training Finished')
 
