@@ -6,7 +6,7 @@ import torch_scatter
 F_e = 10       # intermediate edge embeddings
 F_u = 10       # global node
 F_xs = 10      # source nodes
-F_xt = 3       # target nodes
+F_xt = 2       # target nodes
 F_e_out = 5    # final edge output
 
 class Argmax(torch.autograd.Function):
@@ -173,9 +173,13 @@ class EdgeModel(torch.nn.Module):
         print(f"x_t ({x_t.shape}):", x_t)
         print(f"edge_attr ({edge_attr.shape}):", edge_attr)
         print(f"u ({u.shape}):", u)
-        print()
-
+        
         h = torch.cat([x_s[src], x_t[tgt], edge_attr, u[batch_e]], dim=-1)
+        print(f"h ({h.shape})")
+        print(f"x_s[src] ({x_s[src].shape})")
+        print(f"x_t[tgt] ({x_t[tgt].shape})")
+        print(f"edge_attr ({edge_attr.shape})")
+        print(f"u[batch_e] {(u[batch_e].shape)}")
         return self.edge_mlp(h)
 
 
@@ -236,7 +240,7 @@ class SModel(torch.nn.Module):
         msg = self.node_mlp_1(msg)
 
         # Count and aggregate stats of incoming messages
-        count = torch_scatter.scatter(torch.ones(len(msg), 1), src, dim=0,
+        count = torch_scatter.scatter(torch.ones(len(msg), 1, device='cuda'), src, dim=0,
                         dim_size=x_s.size(0), reduce='sum')
         mean = torch_scatter.scatter(msg, src, dim=0, dim_size=x_s.size(0), reduce='mean')
         var = torch.nn.functional.relu(torch_scatter.scatter(msg**2, src, dim=0, dim_size=x_s.size(0), reduce='mean') - mean**2)
