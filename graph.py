@@ -66,7 +66,8 @@ def to_Graph(properties):
 
     # Node features: fibers (zeros) and galaxies (properties of reachable ones)
     x_s = torch.zeros(NFIBERS, gnn.F_xs, dtype=torch.float)
-    x_t = torch.zeros(NCLASSES, gnn.F_xt, dtype=torch.float)
+    # x_t = torch.zeros(NCLASSES, gnn.F_xt, dtype=torch.float)
+    x_t = torch.tensor(properties, dtype=torch.float)
     u = torch.zeros(1, gnn.F_u, dtype=torch.float)
 
     # Create and return the BipartiteData on GPU
@@ -88,6 +89,7 @@ if __name__ == '__main__':
     """
     ngraph = 1
     utils = np.loadtxt('utils.txt')
+    # utils = np.hstack((utils, np.zeros((utils.shape[0], 3)))) # add 3 columns 
     
     for igraph in range(ngraph):
         # Build graph and save

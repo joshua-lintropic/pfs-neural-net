@@ -248,6 +248,13 @@ class SModel(torch.nn.Module):
         skew = torch_scatter.scatter((msg - mean[src])**3, src, dim=0, dim_size=x_s.size(0), reduce='mean') / std**3
         kurt = torch_scatter.scatter((msg - mean[src])**4, src, dim=0, dim_size=x_s.size(0), reduce='mean') / std**4
 
+        # zero out if nan
+        mean = torch.nan_to_num(mean, nan=0.0)
+        var  = torch.nan_to_num(var,  nan=0.0)
+        std  = torch.sqrt(var + 1e-6)
+        skew = torch.nan_to_num(skew, nan=0.0)
+        kurt = torch.nan_to_num(kurt, nan=0.0)
+
         h_cat = torch.cat([x_s, count, mean, std, skew, kurt, u[batch_s]], dim=1)
         return self.node_mlp_2(h_cat)
 
