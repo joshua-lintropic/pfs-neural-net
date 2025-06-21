@@ -166,20 +166,20 @@ class EdgeModel(torch.nn.Module):
         """
         src, tgt = edge_index
 
-        print("\nEDGE MODEL FORWARD")
-        print(f"src ({src.shape}):", src)
-        print(f"tgt ({tgt.shape}):", tgt)
-        print(f"x_s ({x_s.shape}):", x_s)
-        print(f"x_t ({x_t.shape}):", x_t)
-        print(f"edge_attr ({edge_attr.shape}):", edge_attr)
-        print(f"u ({u.shape}):", u)
+        # print("\nEDGE MODEL FORWARD")
+        # print(f"src ({src.shape}):", src)
+        # print(f"tgt ({tgt.shape}):", tgt)
+        # print(f"x_s ({x_s.shape}):", x_s)
+        # print(f"x_t ({x_t.shape}):", x_t)
+        # print(f"edge_attr ({edge_attr.shape}):", edge_attr)
+        # print(f"u ({u.shape}):", u)
         
         h = torch.cat([x_s[src], x_t[tgt], edge_attr, u[batch_e]], dim=-1)
-        print(f"h ({h.shape})")
-        print(f"x_s[src] ({x_s[src].shape})")
-        print(f"x_t[tgt] ({x_t[tgt].shape})")
-        print(f"edge_attr ({edge_attr.shape})")
-        print(f"u[batch_e] {(u[batch_e].shape)}")
+        # print(f"h ({h.shape})")
+        # print(f"x_s[src] ({x_s[src].shape})")
+        # print(f"x_t[tgt] ({x_t[tgt].shape})")
+        # print(f"edge_attr ({edge_attr.shape})")
+        # print(f"u[batch_e] {(u[batch_e].shape)}")
         return self.edge_mlp(h)
 
 
