@@ -1,0 +1,17 @@
+Start Pre-Training
+Pre-Train Batch 0: Loss=-0.0311, Utility=0.0311
+Pre-Training Finished
+Start Training
+Train Batch 0: Loss=-0.0311, Utility=0.0311
+Train Batch 0: Loss=-0.0311, Utility=0.0311
+Train Batch 0: Loss=-0.0311, Utility=0.0311
+Train Batch 0: Loss=-0.0311, Utility=0.0311
+Train Batch 0: Loss=-0.0311, Utility=0.0311
+Train Batch 0: Loss=-0.0311, Utility=0.0311
+Train Batch 0: Loss=-0.0311, Utility=0.0311
+Train Batch 0: Loss=-0.0311, Utility=0.0311
+Train Batch 0: Loss=-0.0311, Utility=0.0311
+Train Batch 0: Loss=-0.0311, Utility=0.0311
+Training Finished
+Evaluation Results:
+Eval Batch 0: Loss=-0.0311, Utility=0.0311
