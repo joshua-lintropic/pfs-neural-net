@@ -1,4 +1,4 @@
-# PFS-GNN Bipartite
+# PFS Graph Neural Network
 
 This project implements a Graph Neural Network (GNN) for processing bipartite graphs. Each graph represents the connectivity between fibers (source nodes) and galaxy classes (target nodes), where the model predicts discrete time values per edge using a differentiable rounding scheme. The code will run on CUDA, MPS, and CPU, though performance may vary.
 
