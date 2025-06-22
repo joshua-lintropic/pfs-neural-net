@@ -1,6 +1,6 @@
 import torch
-import torch_geometric
 import torch.nn.functional as F
+import torch_geometric
 from torch_scatter import scatter, scatter_mean
 from params import *
 

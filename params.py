@@ -13,4 +13,4 @@ NCLASSES = 12   # number of classes
 TOTAL_TIME = 6  # per‑fiber time budget (T)
 
 # === DEVICE SPECS ===
-device = torch.device('cuda')   # options: CUDA, MPS, CPU
+device = torch.device('mps')   # 'cuda' (gpu), 'mps' (apple silicon), 'cpu' (other)
