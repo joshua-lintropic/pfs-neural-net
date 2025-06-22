@@ -1,5 +1,8 @@
 import torch
 
+# === DEVICE SPECS ===
+device = torch.device('mps')   # 'cuda' (gpu), 'mps' (apple silicon), 'cpu' (other)
+
 # === FEATURE DIMENSIONS === 
 F_e = 10       # number of features per edge
 F_u = 10       # number of features for global node
@@ -11,6 +14,3 @@ F_e_out = 5    # number of field IDs for output
 NFIBERS = 2000  # number of fibers
 NCLASSES = 12   # number of classes
 TOTAL_TIME = 6  # per‑fiber time budget (T)
-
-# === DEVICE SPECS ===
-device = torch.device('mps')   # 'cuda' (gpu), 'mps' (apple silicon), 'cpu' (other)

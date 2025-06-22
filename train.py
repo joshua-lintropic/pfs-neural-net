@@ -53,9 +53,8 @@ if __name__ == '__main__':
     # SLURM setup
     idx = int(os.environ.get("SLURM_ARRAY_TASK_ID", 0))
     ID = str(idx)
-    # print(f"SLURM ID: {ID}")
 
-    # --- Hyperparameters ---
+    # hyperparameters
     ntrain, ntest = 1, 0
     batchsize = 1
     sharpness = 20
@@ -65,16 +64,15 @@ if __name__ == '__main__':
     penalty_pre = 1e-1
     penalty_ini, penalty_end = 1.0, 1.0
     train = True
-
     batchsize = min(batchsize, ntrain)
 
-    # --- Data loading ---
+    # data loading 
     utils = np.loadtxt('utils.txt')
     graphs = [torch.load(f'graphs/graph-{i}.pt', weights_only=False) for i in range(ntrain)]
     dataset = g.Loader(graphs_list=graphs)
     dataloader = torch_geometric.loader.DataLoader(dataset, batch_size=batchsize)
 
-    # Precompute batch index tensors
+    # precompute batch index tensors
     train_be, train_bs, train_bt = [], [], []
     for graph in dataloader:
         E, Ns, Nt = graph.edge_attr.size(0), graph.x_s.size(0), graph.x_t.size(0)
@@ -82,9 +80,9 @@ if __name__ == '__main__':
         train_bs.append(torch.zeros(Ns, dtype=torch.long).to(device))
         train_bt.append(torch.zeros(Nt, dtype=torch.long).to(device))
 
-    # --- Pre-training loop ---
+    # pre-training loop ---
     if nepoch_pre > 0:
-        print('Start Pre-Training')
+        print('STATUS: Start Pre-Training')
         gnn = g.GNN().to(device)
         gnn.sharpness = sharpness
         gnn.noiselevel = noiselevel
@@ -92,7 +90,7 @@ if __name__ == '__main__':
         try:
             gnn.load_state_dict(torch.load('models/model_gnn_pre' + ID + '.pth'))
         except FileNotFoundError:
-            print('No pre-trained checkpoint found.')
+            print('STATUS: No pre-trained checkpoint found.')
 
         for epoch in range(nepoch_pre):
             for i_batch, graph in enumerate(dataloader):
@@ -102,14 +100,14 @@ if __name__ == '__main__':
                 loss.backward()
                 if train:
                     optimizer.step()
-                print(f"Pre-Train Batch {i_batch}: Loss={loss.item():.4f}, Utility={utility:.4f}")
+                print(f"OUTPUT: Pre-Train Batch {i_batch}: Loss={loss.item():.4f}, Utility={utility:.4f}")
 
         torch.save(gnn.state_dict(), 'models/model_gnn_pre' + ID + '.pth')
-        print('Pre-Training Finished')
+        print('STATUS: Pre-Training Finished')
 
-    # --- Main training loop ---
+    # main training loop 
     if nepoch > 0:
-        print('Start Training')
+        print('STATUS: Start Training')
         gnn = g.GNN().to(device)
         gnn.sharpness = sharpness
         gnn.noiselevel = noiselevel
@@ -117,7 +115,7 @@ if __name__ == '__main__':
         try:
             gnn.load_state_dict(torch.load('models/model_gnn' + ID + '.pth'))
         except FileNotFoundError:
-            print('No checkpoint found, using pre-trained model.')
+            print('STATUS: No checkpoint found, using pre-trained model.')
             gnn.load_state_dict(torch.load('models/model_gnn_pre' + ID + '.pth'))
 
         penalty = penalty_ini
@@ -131,15 +129,15 @@ if __name__ == '__main__':
                 loss.backward()
                 if train:
                     optimizer.step()
-                print(f"Train Batch {i_batch}: Loss={loss.item():.4f}, Utility={utility:.4f}")
+                print(f"OUTPUT: Train Batch {i_batch}: Loss={loss.item():.4f}, Utility={utility:.4f}")
             penalty *= rate
 
         torch.save(gnn.state_dict(), 'models/model_gnn' + ID + '.pth')
-        print('Training Finished')
+        print('STATUS: Training Finished')
 
-        # --- Evaluation ---
-        print('Evaluation Results:')
+        # evaluation 
+        print('STATUS: Evaluation Results:')
         for i_batch, graph in enumerate(dataloader):
             time_pred, _ = gnn(graph, train_be[i_batch], train_bs[i_batch], train_bt[i_batch], train=False)
             loss, utility = Loss(time_pred, graph, penalty=penalty)
-            print(f"Eval Batch {i_batch}: Loss={loss.item():.4f}, Utility={utility:.4f}")
+            print(f"OUTPUT: Eval Batch {i_batch}: Loss={loss.item():.4f}, Utility={utility:.4f}")
