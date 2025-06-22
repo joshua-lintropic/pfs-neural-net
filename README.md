@@ -28,9 +28,9 @@ This project implements a Graph Neural Network (GNN) for processing bipartite gr
     source .venv/bin/activate
     ```
 
-3. **Install PyTorch (CUDA, MPS, or CPU)**
+3. **Install PyTorch (CUDA or CPU)**
 
-    You can replace `torch-2.7.0` with your installed PyTorch version.
+    You can replace `torch-2.7.0` with your installed PyTorch version and choose cpu or CUDA support. 
 
     ```sh
     pip install torch torchvision torchaudio
