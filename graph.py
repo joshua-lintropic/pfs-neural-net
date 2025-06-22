@@ -19,18 +19,14 @@ def to_Graph(properties):
     with fixed number of fibers (source nodes) and variable number of galaxies.
 
     Args:
-        indices (array-like of shape [N_galaxies, N_fibers_per_galaxy]):
-            For each galaxy i, a list of fiber indices that can observe it.
-        properties (array-like of shape [N_galaxies, F_xs]):
+        properties (array-like of shape [NCLASSES, F_xs]):
             Feature vectors for each galaxy.
-        maxtime (int, optional):
-            Maximum observation time (unused placeholder).
 
     Returns:
         gnn.BipartiteData:
             A PyG Data object containing:
-            - x_s: zeros of shape [2394, F_xs] for fiber node features.
-            - x_t: tensor of shape [N_reachable, F_xs] for reachable galaxies.
+            - x_s: zeros of shape [NFIBERS, F_xs] for fiber node features.
+            - x_t: tensor of shape [NCLASSES, F_xs] for reachable classes.
             - edge_index: long tensor [2, E] of source->target edges.
             - edge_attr: float tensor [E, F_e] of zero-initialized edge features.
             - u: global feature tensor of shape [1, F_u].

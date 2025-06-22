@@ -1,7 +1,7 @@
 import torch
 import torch_geometric
-import torch_scatter
 import torch.nn.functional as F
+from torch_scatter import scatter, scatter_mean
 from params import *
 
 class Argmax(torch.autograd.Function):
@@ -235,13 +235,13 @@ class SModel(torch.nn.Module):
         msg = self.node_mlp_1(msg)
 
         # Count and aggregate stats of incoming messages
-        count = torch_scatter.scatter(torch.ones(len(msg), 1, device=device), src, dim=0,
+        count = scatter(torch.ones(len(msg), 1, device=device), src, dim=0,
                         dim_size=x_s.size(0), reduce='sum')
-        mean = torch_scatter.scatter(msg, src, dim=0, dim_size=x_s.size(0), reduce='mean')
-        var = F.relu(torch_scatter.scatter(msg**2, src, dim=0, dim_size=x_s.size(0), reduce='mean') - mean**2)
+        mean = scatter(msg, src, dim=0, dim_size=x_s.size(0), reduce='mean')
+        var = F.relu(scatter(msg**2, src, dim=0, dim_size=x_s.size(0), reduce='mean') - mean**2)
         std = torch.sqrt(var + 1e-6)
-        skew = torch_scatter.scatter((msg - mean[src])**3, src, dim=0, dim_size=x_s.size(0), reduce='mean') / std**3
-        kurt = torch_scatter.scatter((msg - mean[src])**4, src, dim=0, dim_size=x_s.size(0), reduce='mean') / std**4
+        skew = scatter((msg - mean[src])**3, src, dim=0, dim_size=x_s.size(0), reduce='mean') / std**3
+        kurt = scatter((msg - mean[src])**4, src, dim=0, dim_size=x_s.size(0), reduce='mean') / std**4
 
         # zero out if nan
         mean = torch.nan_to_num(mean, nan=0.0)
@@ -287,7 +287,7 @@ class TModel(torch.nn.Module):
         src, tgt = edge_index
         msg = torch.cat([x_s[src], edge_attr], dim=1)
         msg = self.node_mlp_1(msg)
-        agg = torch_scatter.scatter(msg, tgt, dim=0, dim_size=x_t.size(0), reduce='sum')
+        agg = scatter(msg, tgt, dim=0, dim_size=x_t.size(0), reduce='sum')
         h_cat = torch.cat([x_t, agg, u[batch_t]], dim=1)
         return self.node_mlp_2(h_cat)
 
@@ -318,8 +318,8 @@ class GlobalModel(torch.nn.Module):
         Returns:
             Tensor: Updated global features [B, F_u].
         """
-        s_mean = torch_scatter.scatter_mean(x_s, batch_s, dim=0)
-        t_mean = torch_scatter.scatter_mean(x_t, batch_t, dim=0)
+        s_mean = scatter_mean(x_s, batch_s, dim=0)
+        t_mean = scatter_mean(x_t, batch_t, dim=0)
         h_cat = torch.cat([u, s_mean, t_mean], dim=1)
         return self.global_mlp(h_cat)
 
