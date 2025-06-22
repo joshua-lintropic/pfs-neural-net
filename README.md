@@ -40,10 +40,14 @@ This project implements a Graph Neural Network (GNN) for processing bipartite gr
 
 # Running the Code
 
-1. **Graph Construction** 
+1. **Device Configuration**
+
+    Choose your desired device (`cuda`, `mps`, or `cpu`) in [`params.py`](params.py). You can also modify other parameters for the neural network. 
+
+2. **Graph Construction** 
 
     Execute [`graph.py`](graph.py) to build and save example complete (fully connected) bipartite graphs. This step converts utility property data from [`utils.txt`](utils.txt) into graphs saved in the `graphs` folder. 
 
-2. **Training the GNN**
+3. **Training the GNN**
 
     Run [`train.py`](train.py) to start training. To submit a SLURM job on a GPU-enabled cluster, use the provided job script in `job.slurm`. 
