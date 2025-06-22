@@ -67,8 +67,8 @@ if __name__ == '__main__':
     batchsize = min(batchsize, ntrain)
 
     # data loading 
-    utils = np.loadtxt('utils.txt')
-    graphs = [torch.load(f'graphs/graph-{i}.pt', weights_only=False) for i in range(ntrain)]
+    utils = np.loadtxt('../data/utils.txt')
+    graphs = [torch.load(f'../graphs/graph-{i}.pt', weights_only=False) for i in range(ntrain)]
     dataset = g.Loader(graphs_list=graphs)
     dataloader = torch_geometric.loader.DataLoader(dataset, batch_size=batchsize)
 
@@ -113,10 +113,10 @@ if __name__ == '__main__':
         gnn.noiselevel = noiselevel
         optimizer = torch.optim.Adam(gnn.parameters(), lr=lr)
         try:
-            gnn.load_state_dict(torch.load('models/model_gnn' + ID + '.pth'))
+            gnn.load_state_dict(torch.load('../models/model_gnn' + ID + '.pth'))
         except FileNotFoundError:
             print('STATUS: No checkpoint found, using pre-trained model.')
-            gnn.load_state_dict(torch.load('models/model_gnn_pre' + ID + '.pth'))
+            gnn.load_state_dict(torch.load('../models/model_gnn_pre' + ID + '.pth'))
 
         penalty = penalty_ini
         rate = (penalty_end / penalty_ini) ** (1.0 / nepoch)
@@ -132,7 +132,7 @@ if __name__ == '__main__':
                 print(f"OUTPUT: Train Batch {i_batch}: Loss={loss.item():.4f}, Utility={utility:.4f}")
             penalty *= rate
 
-        torch.save(gnn.state_dict(), 'models/model_gnn' + ID + '.pth')
+        torch.save(gnn.state_dict(), '../models/model_gnn' + ID + '.pth')
         print('STATUS: Training Finished')
 
         # evaluation 
