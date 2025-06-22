@@ -1,13 +1,8 @@
 import torch
 import torch_geometric
 import torch_scatter
-
-# === FEATURE DIMENSIONS === 
-F_e = 10       # intermediate edge embeddings
-F_u = 10       # global node
-F_xs = 10      # source nodes
-F_xt = 2       # target nodes
-F_e_out = 5    # final edge output
+import torch.nn.functional as F
+from params import *
 
 class Argmax(torch.autograd.Function):
     """
@@ -29,14 +24,14 @@ class Argmax(torch.autograd.Function):
             a 1 at the index of the maximum value in the last dimension.
         """
         _, indices = torch.max(input, dim=1)
-        result = torch.nn.functional.one_hot(indices, num_classes=F_e_out).float()
+        result = F.one_hot(indices, num_classes=F_e_out).float()
         context.save_for_backward(input, result)
         return result
 
     @staticmethod
     def backward(context, grad_output):
         """
-        Backward pass: approximates gradients using a finite-difference method.
+        Backward pass: approximates gradients using a straight-through estimator.
 
         Args:
             context: Context object with saved tensors from forward.
@@ -51,7 +46,7 @@ class Argmax(torch.autograd.Function):
         # NOTE: perturb input by scaled upstream gradient
         input1 = input + Lambda * grad_output
         _, indices1 = torch.max(input1, dim=-1)
-        result1 = torch.nn.functional.one_hot(indices1, num_classes=F_e_out)
+        result1 = F.one_hot(indices1, num_classes=F_e_out)
 
         # NOTE: finite-difference approximation of the gradient
         grad = - (result - result1) / Lambda
@@ -93,16 +88,16 @@ class BipartiteData(torch_geometric.data.Data):
         # super().__init__(edge_index=edge_index, x_s=x_s, x_t=x_t, edge_attr=edge_attr, u=u)
         super(BipartiteData, self).__init__()
         if edge_index is not None:
-            self.edge_index = edge_index.cuda()
+            self.edge_index = edge_index.to(device)
         if x_s is not None:
-            self.x_s = x_s.cuda()
+            self.x_s = x_s.to(device)
         if x_t is not None:
-            self.x_t = x_t.cuda()
+            self.x_t = x_t.to(device)
             self.num_nodes = len(self.x_t)  # dummy to suppress warnings
         if edge_attr is not None:
-            self.edge_attr = edge_attr.cuda()
+            self.edge_attr = edge_attr.to(device)
         if u is not None:
-            self.u = u.cuda()
+            self.u = u.to(device)
 
     def __inc__(self, key, value, *args):
         """
@@ -117,7 +112,7 @@ class BipartiteData(torch_geometric.data.Data):
         """
         if key == 'edge_index':
             # Shift sources by N_s, targets by N_t when batching
-            return torch.tensor([[self.x_s.size(0)], [self.x_t.size(0)]]).cuda()
+            return torch.tensor([[self.x_s.size(0)], [self.x_t.size(0)]]).to(device)
         else:
             return super().__inc__(key, value, *args)
 
@@ -240,10 +235,10 @@ class SModel(torch.nn.Module):
         msg = self.node_mlp_1(msg)
 
         # Count and aggregate stats of incoming messages
-        count = torch_scatter.scatter(torch.ones(len(msg), 1, device='cuda'), src, dim=0,
+        count = torch_scatter.scatter(torch.ones(len(msg), 1, device=device), src, dim=0,
                         dim_size=x_s.size(0), reduce='sum')
         mean = torch_scatter.scatter(msg, src, dim=0, dim_size=x_s.size(0), reduce='mean')
-        var = torch.nn.functional.relu(torch_scatter.scatter(msg**2, src, dim=0, dim_size=x_s.size(0), reduce='mean') - mean**2)
+        var = F.relu(torch_scatter.scatter(msg**2, src, dim=0, dim_size=x_s.size(0), reduce='mean') - mean**2)
         std = torch.sqrt(var + 1e-6)
         skew = torch_scatter.scatter((msg - mean[src])**3, src, dim=0, dim_size=x_s.size(0), reduce='mean') / std**3
         kurt = torch_scatter.scatter((msg - mean[src])**4, src, dim=0, dim_size=x_s.size(0), reduce='mean') / std**4
@@ -369,7 +364,7 @@ class GNN(torch.nn.Module):
         super(GNN, self).__init__()
         self.sharpness  = 20
         self.noiselevel = 0.3
-        self.classes    = torch.arange(F_e_out).float().cuda()
+        self.classes    = torch.arange(F_e_out).float().to(device)
 
         self.block_1     = Block(EdgeModel(), SModel(), TModel(), GlobalModel())
         self.bn_xs_1     = torch.nn.BatchNorm1d(F_xs)
@@ -423,7 +418,7 @@ class GNN(torch.nn.Module):
         x_s, x_t, edge_attr, u = self.block_last(
             x_s, x_t, edge_index, edge_attr, u, batch_e, batch_s, batch_t)
 
-        prob = torch.nn.functional.softmax(edge_attr, dim=-1)
+        prob = F.softmax(edge_attr, dim=-1)
         time = torch.sum(prob * self.classes, dim=-1)
 
         if train:

@@ -5,13 +5,7 @@ import torch_geometric
 from torch_scatter import scatter
 import gnn as g
 import os
-
-# total number of exposures per fiber
-TOTAL_TIME = 6           # per‑fiber time budget (T)
-NCLASSES = 12
-SOFTMIN_T = 5.0 # constraint parameter
-DEFAULT_LMB = 1.0 
-EPS = 1E-6
+from params import *
 
 def Loss(time, graph, penalty=1.0, finaloutput=False):
     """
@@ -24,14 +18,13 @@ def Loss(time, graph, penalty=1.0, finaloutput=False):
     src, tgt = graph.edge_index
     T_i = graph.x_t[:, 0]   # required hours per visit for each class
     N_i = graph.x_t[:, 1]   # total # galaxies in each class
-    total_time = 42         # T in your formula
 
-    # --- 1) Compute class‐wise soft visit counts n'_i = (∑_k t_{ik}) / T_i
+    # compute class‐wise soft visit counts n_i'
     class_time = scatter(time, tgt, dim_size=T_i.size(0), reduce='sum')
-    n_prime = class_time / (T_i + 1e-6)       # shape [#classes]
+    n_prime = class_time / (T_i + 1e-6)       # shape [NCLASSES]
 
-    # --- 2) (Soft) rounding → n_soft ≈ round(n_prime)
-    #     replace with your noisy‐sigmoid routine; here’s a placeholder:
+    # soft rounding
+    # TODO: replace with noisy-sigmoid routine
     sharp = 10.0
     n_soft = torch.sigmoid((n_prime - torch.round(n_prime)) * sharp) * torch.round(n_prime) \
            + (1 - torch.sigmoid((n_prime - torch.round(n_prime)) * sharp)) * torch.floor(n_prime)
@@ -43,7 +36,7 @@ def Loss(time, graph, penalty=1.0, finaloutput=False):
 
     # --- 4) Penalty on per‐fiber overtime
     fiber_time = scatter(time, src, dim_size=graph.x_s.size(0), reduce='sum')
-    overtime = fiber_time - total_time
+    overtime = fiber_time - TOTAL_TIME
     leaky = nn.LeakyReLU(negative_slope=0.0)  # squared‐leaky‐ReLU: p(x) = (LeakyReLU(x))^2
     penalty_term = penalty * torch.sum(leaky(overtime)**2)
 
@@ -85,14 +78,14 @@ if __name__ == '__main__':
     train_be, train_bs, train_bt = [], [], []
     for graph in dataloader:
         E, Ns, Nt = graph.edge_attr.size(0), graph.x_s.size(0), graph.x_t.size(0)
-        train_be.append(torch.zeros(E, dtype=torch.long).cuda())
-        train_bs.append(torch.zeros(Ns, dtype=torch.long).cuda())
-        train_bt.append(torch.zeros(Nt, dtype=torch.long).cuda())
+        train_be.append(torch.zeros(E, dtype=torch.long).to(device))
+        train_bs.append(torch.zeros(Ns, dtype=torch.long).to(device))
+        train_bt.append(torch.zeros(Nt, dtype=torch.long).to(device))
 
     # --- Pre-training loop ---
     if nepoch_pre > 0:
         print('Start Pre-Training')
-        gnn = g.GNN().cuda()
+        gnn = g.GNN().to(device)
         gnn.sharpness = sharpness
         gnn.noiselevel = noiselevel
         optimizer = torch.optim.Adam(gnn.parameters(), lr=lr_pre)
@@ -117,7 +110,7 @@ if __name__ == '__main__':
     # --- Main training loop ---
     if nepoch > 0:
         print('Start Training')
-        gnn = g.GNN().cuda()
+        gnn = g.GNN().to(device)
         gnn.sharpness = sharpness
         gnn.noiselevel = noiselevel
         optimizer = torch.optim.Adam(gnn.parameters(), lr=lr)

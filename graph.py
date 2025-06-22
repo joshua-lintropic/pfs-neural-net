@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import gnn
+from params import *
 
 """
 Module for converting fiber-galaxy index and property data into
@@ -9,10 +10,6 @@ PyG BipartiteData graphs and saving them to disk.
 Each graph represents which galaxies can be observed by which fibers,
 as a bipartite graph with separate source (fibers) and target (galaxies) nodes.
 """
-
-# === CONSTANTS ===
-NCLASSES = 12
-NFIBERS = 2000
 
 def to_Graph(properties):
     """
@@ -71,11 +68,11 @@ def to_Graph(properties):
 
     # Create and return the BipartiteData on GPU
     data = gnn.BipartiteData(
-        edge_index.cuda(),
-        x_s.cuda(),
-        x_t.cuda(),
-        edge_attr.cuda(),
-        u.cuda()
+        edge_index.to(device),
+        x_s.to(device),
+        x_t.to(device),
+        edge_attr.to(device),
+        u.to(device)
     )
     return data
 
