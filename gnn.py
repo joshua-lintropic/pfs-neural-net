@@ -52,27 +52,6 @@ class Argmax(torch.autograd.Function):
         grad = - (result - result1) / Lambda
         return grad
 
-def sparse_sort(src, index, dim=0, descending=False, eps=1e-12):
-    """
-    Computes a stable sorting permutation of `src` along a given dimension,
-    using `index` as a tie-breaker.
-
-    Args:
-        src (Tensor): Values to sort.
-        index (Tensor): Integer tensor of same shape as src, used to break ties.
-        dim (int): Dimension along which to sort.
-        descending (bool): If True, sort in descending order.
-        eps (float): Small constant to avoid division by zero.
-
-    Returns:
-        LongTensor: Permutation indices that sort `src` in the desired order.
-    """
-    f_src = src.float()
-    f_min, f_max = f_src.min(dim)[0], f_src.max(dim)[0]
-    norm = (f_src - f_min) / (f_max - f_min + eps) + index.float() * (-1)**int(descending)
-    perm = norm.argsort(dim=dim, descending=descending)
-    return perm
-
 class BipartiteData(torch_geometric.data.Data):
     """
     Data class for a bipartite graph with separate source and target node sets.
