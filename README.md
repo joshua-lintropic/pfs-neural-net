@@ -39,7 +39,7 @@ This project implements a Graph Neural Network (GNN) for processing bipartite gr
     pip install torch-scatter -f https://data.pyg.org/whl/torch-2.7.0+cpu.html
     ```
 
-# Running the Code
+## Running the Code
 
 1. **Device Configuration**
 
