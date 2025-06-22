@@ -3,9 +3,9 @@ import torch
 import torch.nn as nn
 import torch_geometric
 from torch_scatter import scatter
+from params import *
 import gnn as g
 import os
-from params import *
 
 def Loss(time, graph, penalty=1.0, finaloutput=False):
     """
@@ -21,7 +21,7 @@ def Loss(time, graph, penalty=1.0, finaloutput=False):
 
     # compute class‐wise soft visit counts n_i'
     class_time = scatter(time, tgt, dim_size=T_i.size(0), reduce='sum')
-    n_prime = class_time / (T_i + 1e-6)       # shape [NCLASSES]
+    n_prime = class_time / (T_i + 1e-6) # shape [NCLASSES]
 
     # soft rounding
     # TODO: replace with noisy-sigmoid routine
@@ -29,18 +29,18 @@ def Loss(time, graph, penalty=1.0, finaloutput=False):
     n_soft = torch.sigmoid((n_prime - torch.round(n_prime)) * sharp) * torch.round(n_prime) \
            + (1 - torch.sigmoid((n_prime - torch.round(n_prime)) * sharp)) * torch.floor(n_prime)
 
-    # --- 3) Class‐completeness = n_i / N_i
+    # class‐completeness = n_i / N_i
     completeness = n_soft / (N_i + 1e-6)
     completeness = torch.clamp(completeness, 0.0, 1.0)
     totutils = torch.min(completeness)
 
-    # --- 4) Penalty on per‐fiber overtime
+    # penalty on per‐fiber overtime
     fiber_time = scatter(time, src, dim_size=graph.x_s.size(0), reduce='sum')
     overtime = fiber_time - TOTAL_TIME
     leaky = nn.LeakyReLU(negative_slope=0.0)  # squared‐leaky‐ReLU: p(x) = (LeakyReLU(x))^2
     penalty_term = penalty * torch.sum(leaky(overtime)**2)
 
-    # --- 5) Final loss
+    # final loss
     loss = -totutils + penalty_term
 
     if finaloutput:
