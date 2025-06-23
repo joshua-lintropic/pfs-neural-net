@@ -34,7 +34,7 @@ def Loss(time, graph, properties, sharpness=10.0, penalty=1.0, finaloutput=False
     # penalty on per‐fiber overtime
     fiber_time = scatter(time, src, dim_size=graph.x_s.size(0), reduce='sum')
     overtime = fiber_time - TOTAL_TIME
-    leaky = nn.LeakyReLU(negative_slope=0.02)  # squared‐leaky‐ReLU: p(x) = (LeakyReLU(x))^2
+    leaky = nn.ReLU()  # squared‐leaky‐ReLU: p(x) = (LeakyReLU(x))^2
     penalty_term = penalty * torch.sum(leaky(overtime)**2)
 
     # final loss
