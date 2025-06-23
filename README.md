@@ -17,7 +17,8 @@ pfs-neural-net/
 ├── README.md
 ├── slurm/
 │   ├── adroit.md
-│   └── job.slurm
+│   ├── job.slurm
+│   └── slurm-*******.out
 └── source/
     ├── gnn.py
     ├── graph.py
