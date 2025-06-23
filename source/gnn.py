@@ -111,6 +111,13 @@ class Loader(torch_geometric.data.Dataset):
         """Retrieve graph at index idx."""
         return self.graphs_list[idx]
 
+class MLP(torch.nn.Sequential):
+    def __init__(self, D1, D2, D3):
+        super(MLP, self).__init__(
+            torch.nn.Linear(D1, D2),
+            torch.nn.LeakyReLU(0.1),
+            torch.nn.Linear(D2, D3)
+        )
 
 class EdgeModel(torch.nn.Module):
     """
@@ -119,12 +126,9 @@ class EdgeModel(torch.nn.Module):
     """
     def __init__(self):
         super(EdgeModel, self).__init__()
-        self.edge_mlp = torch.nn.Sequential(
-            torch.nn.Linear(F_xs + F_xt + F_e + F_u, F_e),
-            torch.nn.LeakyReLU(0.1),
-            torch.nn.Linear(F_e, F_e)
-        )
-
+        F = F_xs + F_xt + F_e + F_u,
+        self.edge_mlp = MLP(F, F_e, F_e)
+        
     def forward(self, x_s, x_t, edge_index, edge_attr, u, batch_e):
         """
         Args:
@@ -379,8 +383,13 @@ class GNN(torch.nn.Module):
                 time (Tensor): Predicted time per edge [E].
                 edge_index (LongTensor): Unchanged edge_index for reference.
         """
+        # TODO: take a dimension argument `d`, lift x_s and x_t to this dimension
         x_s, x_t = data.x_s, data.x_t
         edge_index, edge_attr, u = data.edge_index, data.edge_attr, data.u
+        
+        # Encode node features
+        x_s = self.encoder_s(x_s) # MLP from F_s -> F, say 16
+        x_t = self.encoder_t(x_t) # MLP from F_t -> F
 
         # Four rounds of MetaLayer-style updates with BatchNorm
         for blk, bn_xs, bn_xt, bn_e in [
@@ -393,7 +402,7 @@ class GNN(torch.nn.Module):
                                         u, batch_e, batch_s, batch_t)
             x_s = bn_xs(x_s); x_t = bn_xt(x_t); edge_attr = bn_e(edge_attr)
 
-        # Final edge-only update
+        # Final edge-only update ???
         x_s, x_t, edge_attr, u = self.block_last(
             x_s, x_t, edge_index, edge_attr, u, batch_e, batch_s, batch_t)
 
