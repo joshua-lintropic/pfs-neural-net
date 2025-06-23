@@ -56,9 +56,7 @@ def to_Graph(properties):
     edge_index = edge_index[:, order]
 
     # Node features: fibers (zeros) and galaxies (properties of reachable ones)
-    # x_s = torch.zeros(NFIBERS, gnn.F_xs, dtype=torch.float)
     x_s = torch.randn(NFIBERS, gnn.F_xs, dtype=torch.float)
-    # x_t = torch.zeros(NCLASSES, gnn.F_xt, dtype=torch.float)
     x_t = torch.tensor(properties, dtype=torch.float)
     u = torch.zeros(1, gnn.F_u, dtype=torch.float)
 
