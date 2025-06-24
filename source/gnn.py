@@ -57,26 +57,25 @@ class BipartiteData(torch_geometric.data.Data):
     Data class for a bipartite graph with separate source and target node sets.
 
     Attributes:
-        x_s (Tensor): Source-node features [N_s, F_xs].
-        x_t (Tensor): Target-node features [N_t, F_xt].
         edge_index (LongTensor): Edge indices [2, E], row0=src, row1=tgt.
-        edge_attr (Tensor): Edge features [E, F_e].
-        u (Tensor): Global features [B, F_u].
+        x_s (Tensor): Source-node features [S, F_s].
+        x_t (Tensor): Target-node features [T, F_t].
+        x_e (Tensor): Edge features [E, F_e].
+        x_u (Tensor): Global features [B, F_u].
     """
-    def __init__(self, edge_index, x_s, x_t, edge_attr, u):
-        # super().__init__(edge_index=edge_index, x_s=x_s, x_t=x_t, edge_attr=edge_attr, u=u)
+    def __init__(self, edge_index, x_s, x_t, x_e, x_u):
         super(BipartiteData, self).__init__()
         if edge_index is not None:
-            self.edge_index = edge_index.to(device)
+            self.edge_index = edge_index
         if x_s is not None:
-            self.x_s = x_s.to(device)
+            self.x_s = x_s
         if x_t is not None:
-            self.x_t = x_t.to(device)
+            self.x_t = x_t
             self.num_nodes = len(self.x_t)  # dummy to suppress warnings
-        if edge_attr is not None:
-            self.edge_attr = edge_attr.to(device)
-        if u is not None:
-            self.u = u.to(device)
+        if x_e is not None:
+            self.x_e = x_e
+        if x_u is not None:
+            self.x_u = x_u
 
     def __inc__(self, key, value, *args):
         """
@@ -91,7 +90,7 @@ class BipartiteData(torch_geometric.data.Data):
         """
         if key == 'edge_index':
             # Shift sources by N_s, targets by N_t when batching
-            return torch.tensor([[self.x_s.size(0)], [self.x_t.size(0)]]).to(device)
+            return torch.tensor([[self.x_s.size(0)], [self.x_t.size(0)]])
         else:
             return super().__inc__(key, value, *args)
 
@@ -111,80 +110,43 @@ class Loader(torch_geometric.data.Dataset):
         """Retrieve graph at index idx."""
         return self.graphs_list[idx]
 
-# class MLP(torch.nn.Sequential):
-#     def __init__(self, D1, D2, D3):
-#         super(MLP, self).__init__(
-#             torch.nn.Linear(D1, D2),
-#             torch.nn.LeakyReLU(0.1),
-#             torch.nn.Linear(D2, D3)
-#         )
+class MLP(torch.nn.Sequential):
+    def __init__(self, D1, D2, D3):
+        super(MLP, self).__init__(
+            torch.nn.Linear(D1, D2),
+            torch.nn.LeakyReLU(0.1),
+            torch.nn.Linear(D2, D3)
+        )
 
-class EdgeModel(torch.nn.Module):
+class EdgeModel(MLP):
     """
     Edge update module: combines source/node features, target/node features,
     edge features, and global features into updated edge embeddings.
     """
-    def __init__(self):
-        super(EdgeModel, self).__init__()
-        F = F_xs + F_xt + F_e + F_u,
-        # self.edge_mlp = MLP(F, F_e, F_e)
-        self.edge_mlp = torch.nn.Sequential(
-            torch.nn.Linear(F_xs + F_xt + F_e + F_u, F_e), 
-            torch.nn.LeakyReLU(0.1),
-            torch.nn.Linear(F_e, F_e)
-        )
-        
-    def forward(self, x_s, x_t, edge_index, edge_attr, u, batch_e):
+    def __init__(self, F=10, normed=True):
+        F_message = 4 * F
+        super(EdgeModel, self).__init__(F_message, F_message, F)
+        if normed:
+            self.norm = torch.nn.BatchNorm1d(F)
+        else:
+            self.norm = lambda x: x
+
+    def forward(self, x_s, x_t, edge_index, edge_attr, u):
         """
         Args:
-            x_s (Tensor): Source-node embeddings [E_s, F_xs].
-            x_t (Tensor): Target-node embeddings [E_t, F_xt].
+            x_s (Tensor): Source-node embeddings [S, F].
+            x_t (Tensor): Target-node embeddings [T, F].
             edge_index (LongTensor): [2, E].
-            edge_attr (Tensor): Edge embeddings [E, F_e].
-            u (Tensor): Global embeddings [B, F_u].
-            batch_e (LongTensor): Edge-to-graph map [E].
+            edge_attr (Tensor): Edge embeddings [E, F].
+            u (Tensor): Global embeddings [B, F].
 
         Returns:
-            Tensor: Updated edge features [E, F_e].
+            Tensor: Updated edge features [E, F].
         """
         src, tgt = edge_index
-
-        # print("\nEDGE MODEL FORWARD")
-        # print(f"src ({src.shape}):", src)
-        # print(f"tgt ({tgt.shape}):", tgt)
-        # print(f"x_s ({x_s.shape}):", x_s)
-        # print(f"x_t ({x_t.shape}):", x_t)
-        # print(f"edge_attr ({edge_attr.shape}):", edge_attr)
-        # print(f"u ({u.shape}):", u)
-        
-        h = torch.cat([x_s[src], x_t[tgt], edge_attr, u[batch_e]], dim=-1)
-        # print(f"h ({h.shape})")
-        # print(f"x_s[src] ({x_s[src].shape})")
-        # print(f"x_t[tgt] ({x_t[tgt].shape})")
-        # print(f"edge_attr ({edge_attr.shape})")
-        # print(f"u[batch_e] {(u[batch_e].shape)}")
-        return self.edge_mlp(h)
-
-
-class EdgeModel_out(torch.nn.Module):
-    """
-    Final edge update module producing logits over discrete edge labels.
-    """
-    def __init__(self):
-        super(EdgeModel_out, self).__init__()
-        self.edge_mlp = torch.nn.Sequential(
-            torch.nn.Linear(F_xs + F_xt + F_e + F_u, F_e_out),
-            torch.nn.LeakyReLU(0.1),
-            torch.nn.Linear(F_e_out, F_e_out)
-        )
-
-    def forward(self, x_s, x_t, edge_index, edge_attr, u, batch_e):
-        """
-        Same as EdgeModel but outputs dimension F_e_out.
-        """
-        src, tgt = edge_index
-        h = torch.cat([x_s[src], x_t[tgt], edge_attr, u[batch_e]], dim=-1)
-        return self.edge_mlp(h)
+        E = edge_attr.size(0)
+        h = torch.cat([x_s[src], x_t[tgt], edge_attr, u.expand(E,-1)], dim=-1)
+        return self.norm(super().forward(h))
 
 
 class SModel(torch.nn.Module):
@@ -192,39 +154,37 @@ class SModel(torch.nn.Module):
     Source-node update: aggregates incoming edge messages (with statistics)
     and updates source-node embeddings.
     """
-    def __init__(self):
+    def __init__(self, F=10, normed=True):
         super(SModel, self).__init__()
-        self.node_mlp_1 = torch.nn.Sequential(
-            torch.nn.Linear(F_e + F_xt, F_e + F_xt),
-            torch.nn.LeakyReLU(0.1),
-            torch.nn.Linear(F_e + F_xt, F_e + F_xt)
-        )
-        self.node_mlp_2 = torch.nn.Sequential(
-            torch.nn.Linear(F_xs + 1 + 4 * (F_e + F_xt) + F_u, F_xs),
-            torch.nn.LeakyReLU(0.1),
-            torch.nn.Linear(F_xs, F_xs)
-        )
+        F_message = 2 * F
+        self.node_mlp_1 = MLP(F_message, F_message, F_message)
 
-    def forward(self, x_s, x_t, edge_index, edge_attr, u, batch_s):
+        F_message2 = 4 * F_message + 2 * F
+        self.node_mlp_2 = MLP(F_message2, F_message2, F)
+
+        if normed:
+            self.norm = torch.nn.BatchNorm1d(F)
+        else:
+            self.norm = lambda x: x
+
+
+    def forward(self, x_s, x_t, edge_index, edge_attr, u):
         """
         Args:
-            x_s (Tensor): Source embeddings [N_s, F_xs].
-            x_t (Tensor): Target embeddings [N_t, F_xt].
+            x_s (Tensor): Source embeddings [S, F].
+            x_t (Tensor): Target embeddings [T, F].
             edge_index (LongTensor): [2, E].
-            edge_attr (Tensor): Edge embeddings [E, F_e].
-            u (Tensor): Global embeddings [B, F_u].
-            batch_s (LongTensor): Node-to-graph map for source nodes [N_s].
+            edge_attr (Tensor): Edge embeddings [E, F].
+            u (Tensor): Global embeddings [B, F].
 
         Returns:
-            Tensor: Updated source-node features [N_s, F_xs].
+            Tensor: Updated source-node features [S, F].
         """
         src, tgt = edge_index
         msg = torch.cat([x_t[tgt], edge_attr], dim=1)
         msg = self.node_mlp_1(msg)
 
         # Count and aggregate stats of incoming messages
-        count = scatter(torch.ones(len(msg), 1, device=device), src, dim=0,
-                        dim_size=x_s.size(0), reduce='sum')
         mean = scatter(msg, src, dim=0, dim_size=x_s.size(0), reduce='mean')
         var = F.relu(scatter(msg**2, src, dim=0, dim_size=x_s.size(0), reduce='mean') - mean**2)
         std = torch.sqrt(var + 1e-6)
@@ -238,78 +198,77 @@ class SModel(torch.nn.Module):
         skew = torch.nan_to_num(skew, nan=0.0)
         kurt = torch.nan_to_num(kurt, nan=0.0)
 
-        h_cat = torch.cat([x_s, count, mean, std, skew, kurt, u[batch_s]], dim=1)
-        return self.node_mlp_2(h_cat)
+        h_cat = torch.cat([x_s, mean, std, skew, kurt, u.expand(len(x_s), -1)], dim=-1)
+        return self.norm(self.node_mlp_2(h_cat))
 
 
 class TModel(torch.nn.Module):
     """
     Target-node update: sums incoming edge messages and updates target-node embeddings.
     """
-    def __init__(self):
+    def __init__(self, F=10, normed=True):
         super(TModel, self).__init__()
-        self.node_mlp_1 = torch.nn.Sequential(
-            torch.nn.Linear(F_e + F_xs, F_e + F_xs),
-            torch.nn.LeakyReLU(0.1),
-            torch.nn.Linear(F_e + F_xs, F_e + F_xs)
-        )
-        self.node_mlp_2 = torch.nn.Sequential(
-            torch.nn.Linear(F_xt + (F_e + F_xs) + F_u, F_xt),
-            torch.nn.LeakyReLU(0.1),
-            torch.nn.Linear(F_xt, F_xt)
-        )
+        F_message = 2 * F
+        self.node_mlp_1 = MLP(F_message, F_message, F_message)
 
-    def forward(self, x_s, x_t, edge_index, edge_attr, u, batch_t):
+        F_message2 = 4 * F
+        self.node_mlp_2 = MLP(F_message2, F_message2, F)
+
+        if normed:
+            self.norm = torch.nn.BatchNorm1d(F)
+        else:
+            self.norm = lambda x: x
+
+
+    def forward(self, x_s, x_t, edge_index, edge_attr, u):
         """
         Args:
-            x_s (Tensor): Source embeddings [N_s, F_xs].
-            x_t (Tensor): Target embeddings [N_t, F_xt].
+            x_s (Tensor): Source embeddings [S, F].
+            x_t (Tensor): Target embeddings [T, F].
             edge_index (LongTensor): [2, E].
-            edge_attr (Tensor): Edge embeddings [E, F_e].
-            u (Tensor): Global embeddings [B, F_u].
-            batch_t (LongTensor): Node-to-graph map for target nodes [N_t].
+            edge_attr (Tensor): Edge embeddings [E, F].
+            u (Tensor): Global embeddings [B, F].
 
         Returns:
-            Tensor: Updated target-node features [N_t, F_xt].
+            Tensor: Updated target-node features [T, F].
         """
         src, tgt = edge_index
         msg = torch.cat([x_s[src], edge_attr], dim=1)
         msg = self.node_mlp_1(msg)
         agg = scatter(msg, tgt, dim=0, dim_size=x_t.size(0), reduce='sum')
-        h_cat = torch.cat([x_t, agg, u[batch_t]], dim=1)
-        return self.node_mlp_2(h_cat)
+        h_cat = torch.cat([x_t, agg, u.expand(len(x_t),-1)], dim=-1)
+        return self.norm(self.node_mlp_2(h_cat))
 
 
-class GlobalModel(torch.nn.Module):
+class GlobalModel(MLP):
     """
     Graph-level update: pools node embeddings to update global features.
     """
-    def __init__(self):
-        super(GlobalModel, self).__init__()
-        self.global_mlp = torch.nn.Sequential(
-            torch.nn.Linear(F_u + F_xs + F_xt, F_u),
-            torch.nn.LeakyReLU(0.1),
-            torch.nn.Linear(F_u, F_u)
-        )
+    def __init__(self, F=10, normed=True):
+        F_message = 3 * F
+        super(GlobalModel, self).__init__(F_message, F_message, F)
+        if normed:
+            self.norm = torch.nn.RMSNorm(F)
+        else:
+            self.norm = lambda x: x
 
-    def forward(self, x_s, x_t, edge_index, edge_attr, u, batch_s, batch_t):
+
+    def forward(self, x_s, x_t, edge_index, edge_attr, u):
         """
         Args:
-            x_s (Tensor): Updated source-node features [N_s, F_xs].
-            x_t (Tensor): Updated target-node features [N_t, F_xt].
+            x_s (Tensor): Updated source-node features [S, F].
+            x_t (Tensor): Updated target-node features [T, F].
             edge_index (LongTensor): [2, E].
-            edge_attr (Tensor): Updated edge features [E, F_e].
-            u (Tensor): Previous global features [B, F_u].
-            batch_s (LongTensor): Source-node graph indices [N_s].
-            batch_t (LongTensor): Target-node graph indices [N_t].
+            edge_attr (Tensor): Updated edge features [E, F].
+            u (Tensor): Previous global features [B, F].
 
         Returns:
             Tensor: Updated global features [B, F_u].
         """
-        s_mean = scatter_mean(x_s, batch_s, dim=0)
-        t_mean = scatter_mean(x_t, batch_t, dim=0)
-        h_cat = torch.cat([u, s_mean, t_mean], dim=1)
-        return self.global_mlp(h_cat)
+        s_mean = x_s.mean(dim=0, keepdim=True)
+        t_mean = x_t.mean(dim=0, keepdim=True)
+        h_cat = torch.cat([u, s_mean, t_mean], dim=-1)
+        return self.norm(super().forward(h_cat))
 
 
 class Block(torch.nn.Module):
@@ -317,71 +276,61 @@ class Block(torch.nn.Module):
     A single MetaLayer block combining edge, source-node, target-node,
     and global update modules.
     """
-    def __init__(self, edge_model=None, s_model=None, t_model=None, u_model=None):
+    def __init__(self, F=10, e_model=True, s_model=True, t_model=True, u_model=True, normed=True):
         super(Block, self).__init__()
-        self.edge_model   = edge_model
-        self.s_model      = s_model
-        self.t_model      = t_model
-        self.global_model = u_model
 
-    def forward(self, x_s, x_t, edge_index, edge_attr, u,
-                batch_e, batch_s, batch_t):
+        if e_model:
+            self.edge_model = EdgeModel(F, normed=normed)
+        if s_model:
+            self.s_model = SModel(F, normed=normed)
+        if t_model:
+            self.t_model = TModel(F, normed=normed)
+        if u_model:
+            self.global_model = GlobalModel(F, normed=normed)
+
+    def forward(self, args):
         """
         Sequentially applies: edge -> source -> target -> global updates.
 
         Returns:
-            Tuple of updated (x_s, x_t, edge_attr, u).
+            Tuple of updated (x_s, x_t, x_e, u).
         """
-        if self.edge_model:
-            edge_attr = self.edge_model(x_s, x_t, edge_index, edge_attr, u, batch_e)
-        if self.s_model:
-            x_s = self.s_model(x_s, x_t, edge_index, edge_attr, u, batch_s)
-        if self.t_model:
-            x_t = self.t_model(x_s, x_t, edge_index, edge_attr, u, batch_t)
-        if self.global_model:
-            u   = self.global_model(x_s, x_t, edge_index, edge_attr, u, batch_s, batch_t)
-        return x_s, x_t, edge_attr, u
-
+        edge_index, x_s, x_t, x_e, x_u = args
+        if hasattr(self, "edge_model"):
+            x_e = self.edge_model(x_s, x_t, edge_index, x_e, x_u)
+        if hasattr(self, "s_model"):
+            x_s = self.s_model(x_s, x_t, edge_index, x_e, x_u)
+        if hasattr(self, "t_model"):
+            x_t = self.t_model(x_s, x_t, edge_index, x_e, x_u)
+        if hasattr(self, "global_model"):
+            x_u = self.global_model(x_s, x_t, edge_index, x_e, x_u)
+        return edge_index, x_s, x_t, x_e, x_u
 
 class GNN(torch.nn.Module):
     """
     Full GNN stacking multiple MetaLayer-style blocks to predict a discrete
     "time" value per edge via a differentiable rounding scheme.
     """
-    def __init__(self):
+    def __init__(self, B=4, F=16, T=12, F_s=1, F_t=1, normed=True):
         super(GNN, self).__init__()
-        self.sharpness  = 20
-        self.noiselevel = 0.3
-        self.classes    = torch.arange(F_e_out).float().to(device)
 
-        self.block_1     = Block(EdgeModel(), SModel(), TModel(), GlobalModel())
-        self.bn_xs_1     = torch.nn.BatchNorm1d(F_xs)
-        self.bn_xt_1     = torch.nn.BatchNorm1d(F_xt)
-        self.bn_e_1      = torch.nn.BatchNorm1d(F_e)
-        self.block_2     = Block(EdgeModel(), SModel(), TModel(), GlobalModel())
-        self.bn_xs_2     = torch.nn.BatchNorm1d(F_xs)
-        self.bn_xt_2     = torch.nn.BatchNorm1d(F_xt)
-        self.bn_e_2      = torch.nn.BatchNorm1d(F_e)
-        self.block_3     = Block(EdgeModel(), SModel(), TModel(), GlobalModel())
-        self.bn_xs_3     = torch.nn.BatchNorm1d(F_xs)
-        self.bn_xt_3     = torch.nn.BatchNorm1d(F_xt)
-        self.bn_e_3      = torch.nn.BatchNorm1d(F_e)
-        self.block_4     = Block(EdgeModel(), SModel(), TModel(), GlobalModel())
-        self.bn_xs_4     = torch.nn.BatchNorm1d(F_xs)
-        self.bn_xt_4     = torch.nn.BatchNorm1d(F_xt)
-        self.bn_e_4      = torch.nn.BatchNorm1d(F_e)
-        self.block_last  = Block(EdgeModel_out())
+        # Encoders
+        self.encoder_s = MLP(F_s, F, F)
+        self.encoder_t = MLP(F_t, F, F)
 
-    def forward(self, data, batch_e, batch_s, batch_t, train=True):
+        # Message passing blocks
+        self.mpb = torch.nn.Sequential(*(Block(F, normed=normed) for b in range(B)))
+
+        # Decoders
+        self.decoder_e = MLP(F, F, 1)
+        self.decoder_s = MLP(F, F, T)
+
+    def forward(self, graph):
         """
         Forward pass through four MetaLayer blocks plus final edge update.
 
         Args:
-            data (BipartiteData): Batch of bipartite graphs.
-            batch_e (LongTensor): Edge-to-graph mapping [E].
-            batch_s (LongTensor): Source-node-to-graph mapping [N_s].
-            batch_t (LongTensor): Target-node-to-graph mapping [N_t].
-            train (bool): If True, apply noise+sigmoid rounding; else hard round.
+            graph (BipartiteData): Batch of bipartite graphs.
 
         Returns:
             Tuple:
@@ -389,37 +338,35 @@ class GNN(torch.nn.Module):
                 edge_index (LongTensor): Unchanged edge_index for reference.
         """
         # TODO: take a dimension argument `d`, lift x_s and x_t to this dimension
-        x_s, x_t = data.x_s, data.x_t
-        edge_index, edge_attr, u = data.edge_index, data.edge_attr, data.u
-        
+        x_s, x_t = graph.x_s, graph.x_t
+        edge_index, x_e, x_u = graph.edge_index, graph.x_e, graph.x_u
+
         # Encode node features
-        # x_s = self.encoder_s(x_s) # MLP from F_s -> F, say 16
-        # x_t = self.encoder_t(x_t) # MLP from F_t -> F
+        x_s = self.encoder_s(x_s)
+        x_t = self.encoder_t(x_t)
 
-        # Four rounds of MetaLayer-style updates with BatchNorm
-        for blk, bn_xs, bn_xt, bn_e in [
-            (self.block_1, self.bn_xs_1, self.bn_xt_1, self.bn_e_1),
-            (self.block_2, self.bn_xs_2, self.bn_xt_2, self.bn_e_2),
-            (self.block_3, self.bn_xs_3, self.bn_xt_3, self.bn_e_3),
-            (self.block_4, self.bn_xs_4, self.bn_xt_4, self.bn_e_4),
-        ]:
-            x_s, x_t, edge_attr, u = blk(x_s, x_t, edge_index, edge_attr,
-                                        u, batch_e, batch_s, batch_t)
-            x_s = bn_xs(x_s); x_t = bn_xt(x_t); edge_attr = bn_e(edge_attr)
+        # B rounds of MetaLayer-style message passing on graph
+        args = (edge_index, x_s, x_t, x_e, x_u)
+        _, x_s, x_t, x_e, x_u = self.mpb(args)
 
-        # Final edge-only update ???
-        x_s, x_t, edge_attr, u = self.block_last(
-            x_s, x_t, edge_index, edge_attr, u, batch_e, batch_s, batch_t)
+        # make new graph
+        return BipartiteData(edge_index, x_s, x_t, x_e, x_u)
 
-        prob = F.softmax(edge_attr, dim=-1)
-        time = torch.sum(prob * self.classes, dim=-1)
+    def edge_prediction(self, x_e):
+        # Decode predicted time/numbers from edges
+        pred = self.decoder_e(x_e)
+        pred  = self.round(pred)
+        return pred
 
-        if train:
-            noise = self.noiselevel * (torch.rand_like(time) - 0.5)
-            time = time + noise
-            intpart = torch.floor(time)
-            time = intpart + torch.sigmoid(self.sharpness * (time - 0.5 - intpart))
+    def node_prediction(self, x_s, T_max=10):
+        # multi-class prediction for every fiber node
+        pred = self.encoder_s(x_s) #
+        time = torch.softmax(pred, dim=-1) * T_max # sum up to T_max
+        time = self.round(time) # TODO: does not need to sum up to T_max!!!
+        return time
+
+    def round(self, x):
+        if self.train:
+            return x
         else:
-            time = torch.round(time)
-
-        return time, edge_index
+            return torch.round(x)
