@@ -16,5 +16,6 @@ module purge
 module load anaconda3/2024.10
 conda activate torch-gnn
 
+cd source
 python graph.py
 python train.py

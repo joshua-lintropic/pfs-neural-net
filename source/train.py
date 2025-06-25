@@ -12,12 +12,6 @@ from format import bcolors
 import os
 
 # === DEVICE SPEFICIATIONS ===
-if torch.cuda.is_available():
-    device = torch.device("cuda")
-elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
-    device = torch.device("mps")
-else:
-    device = torch.device("cpu")
 ncores = os.cpu_count() or 1
 os.environ['OMP_NUM_THREADS'] = str(ncores)
 os.environ['MKL_NUM_THREADS'] = str(ncores)
@@ -69,7 +63,8 @@ def loss_function(graph, class_info, penalty=1.0, sharpness=20, noiselevel=0.3, 
 
     if finaloutput:
         # optionally produce hard counts & diagnostics
-        return loss, n / N_i, n, fiber_time
+        hard_counts = (n / N_i).detach().cpu().numpy()
+        return loss, totutils, hard_counts, n, fiber_time
     else:
         return loss, totutils
 
@@ -88,15 +83,14 @@ if __name__ == '__main__':
     edge_index = torch.cartesian_prod(torch.arange(NFIBERS), torch.arange(NCLASSES)).to(device).T
 
     # dummy inits for edges and globals
-    F = 15 # lifted dimension
-    x_e = torch.zeros(NFIBERS * NCLASSES,F)
-    x_u = torch.zeros(1, F)
+    x_e = torch.zeros(NFIBERS * NCLASSES,Fdim).to(device)
+    x_u = torch.zeros(1, Fdim).to(device)
 
     # combine in graph
     graph = BipartiteData(edge_index=edge_index, x_s=x_s, x_t=x_t, x_e=x_e, x_u=x_u).to(device)
 
     # pre-training loop ---
-    gnn = GNN(F=F, B=3, F_s=x_s.shape[1], F_t=x_t.shape[1], T=NCLASSES).to(device)
+    gnn = GNN(Fdim=Fdim, B=3, F_s=x_s.shape[1], F_t=x_t.shape[1], T=NCLASSES).to(device)
     # try:
     #     gnn.load_state_dict(torch.load('../models/model_gnn_pre' + ID + '.pth'))
     # except FileNotFoundError:
@@ -107,11 +101,12 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(gnn.parameters(), lr=1e-4)
     losses = np.zeros(nepochs)
     objective = np.zeros(nepochs)
+    completions = np.zeros((NCLASSES, nepochs))
     for epoch in trange(nepochs, desc='Training GNN'):
         # backprop
         gnn.zero_grad()
         graph_ = gnn(graph)
-        loss, utility = loss_function(graph_, class_info, penalty=0.1)
+        loss, utility, completions[:,epoch], _, _ = loss_function(graph_, class_info, penalty=0.1, finaloutput=True)
         loss.backward()
         # print(f"Loss={loss.item():.4e}, Utility={utility:.4f}")
         optimizer.step()
@@ -125,9 +120,14 @@ if __name__ == '__main__':
     epochs_delayed = np.arange((start := min(50, nepochs // 10)), nepochs + 1)
     plots = [
         (epochs, losses, 'Epochs', 'Regularized Loss', 'red'),
-        (epochs_delayed, losses[start-1:], 'Epochs', 'Regularized Loss', 'blue'),
+        (epochs_delayed, losses[start-1:], 'Epochs', 'Regularized Loss', 'red'),
         (epochs, objective, 'Epochs', 'Min Class Completion', 'green')
     ]
+    cmap = plt.get_cmap('viridis', NCLASSES)
+    for i in range(completions.shape[0]):
+        plots.append(
+            (epochs, completions[i], 'Epochs', f'Class {i} Completion', cmap(i % cmap.N))
+        )
     fig, axes = plt.subplots(nrows=len(plots))
     fig.suptitle(f'GNN Training Results for {nepochs} Epochs')
     for i, (xs, ys, xlabel, ylabel, color) in enumerate(plots):

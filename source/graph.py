@@ -19,7 +19,7 @@ def to_Graph(properties):
     with fixed number of fibers (source nodes) and variable number of galaxies.
 
     Args:
-        properties (array-like of shape [NCLASSES, F_xs]):
+        properties (array-like of shape [NCLASSES, F]):
             Feature vectors for each galaxy.
 
     Returns:
@@ -35,15 +35,15 @@ def to_Graph(properties):
     edge_attr = []
     e_s = []  # source indices (fibers)
     e_t = []  # target indices (classes)
-    reachable = np.ones(properties.shape[0], dtype=bool) # always reachable
+    # reachable = np.ones(properties.shape[0], dtype=bool) # always reachable
 
     # Build complete edges: every fiber->class yields an edge
     for i in range(properties.shape[0]):
         for fiber_idx in range(NFIBERS):
             e_s.append(fiber_idx)
             e_t.append(i)
-            edge_attr.append(np.zeros(gnn.F_e))
-        reachable[i] = True
+            edge_attr.append(np.zeros(gnn.Fdim))
+        # reachable[i] = True
     # print(f"e_t ({len(e_t)}):", set(e_t))
 
     # Convert to tensors and sort edges by source id (fiber)
@@ -56,9 +56,9 @@ def to_Graph(properties):
     edge_index = edge_index[:, order]
 
     # Node features: fibers (zeros) and galaxies (properties of reachable ones)
-    x_s = torch.randn(NFIBERS, gnn.F_xs, dtype=torch.float)
+    x_s = torch.randn(NFIBERS, gnn.Fdim, dtype=torch.float)
     x_t = torch.tensor(properties, dtype=torch.float)
-    u = torch.zeros(1, gnn.F_u, dtype=torch.float)
+    u = torch.zeros(1, gnn.Fdim, dtype=torch.float)
 
     # Create and return the BipartiteData on GPU
     data = gnn.BipartiteData(
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     """
     ngraph = 1
     utils = np.loadtxt('../data/utils.txt')
-    # utils = np.hstack((utils, np.zeros((utils.shape[0], 3)))) # add 3 columns 
+    utils = np.hstack((utils, np.zeros((utils.shape[0], Fdim - utils.shape[1]))))
     
     for igraph in range(ngraph):
         # Build graph and save

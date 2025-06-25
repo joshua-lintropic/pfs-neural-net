@@ -4,54 +4,6 @@ import torch_geometric
 from torch_scatter import scatter, scatter_mean
 from params import *
 
-class Argmax(torch.autograd.Function):
-    """
-    Custom autograd Function that computes a one-hot argmax in the forward pass
-    and uses a finite-difference straight-through estimator in the backward pass.
-    """
-
-    @staticmethod
-    def forward(context, input):
-        """
-        Forward pass: computes the one-hot encoding of the maximum value indices.
-
-        Args:
-            context: Context object to save tensors for backward.
-            input (Tensor): Input tensor of shape [..., F_e_out].
-
-        Returns:
-            Tensor: One-hot encoded tensor of the same shape as input, with
-            a 1 at the index of the maximum value in the last dimension.
-        """
-        _, indices = torch.max(input, dim=1)
-        result = F.one_hot(indices, num_classes=F_e_out).float()
-        context.save_for_backward(input, result)
-        return result
-
-    @staticmethod
-    def backward(context, grad_output):
-        """
-        Backward pass: approximates gradients using a straight-through estimator.
-
-        Args:
-            context: Context object with saved tensors from forward.
-            grad_output (Tensor): Gradient of the loss with respect to the output.
-
-        Returns:
-            Tensor: Gradient with respect to the input of the forward pass.
-        """
-        Lambda = 1000
-        input, result = context.saved_tensors
-        
-        # NOTE: perturb input by scaled upstream gradient
-        input1 = input + Lambda * grad_output
-        _, indices1 = torch.max(input1, dim=-1)
-        result1 = F.one_hot(indices1, num_classes=F_e_out)
-
-        # NOTE: finite-difference approximation of the gradient
-        grad = - (result - result1) / Lambda
-        return grad
-
 class BipartiteData(torch_geometric.data.Data):
     """
     Data class for a bipartite graph with separate source and target node sets.
@@ -311,19 +263,19 @@ class GNN(torch.nn.Module):
     Full GNN stacking multiple MetaLayer-style blocks to predict a discrete
     "time" value per edge via a differentiable rounding scheme.
     """
-    def __init__(self, B=4, F=16, T=12, F_s=1, F_t=1, normed=True):
+    def __init__(self, B=4, Fdim=16, T=12, F_s=1, F_t=1, normed=True):
         super(GNN, self).__init__()
 
         # Encoders
-        self.encoder_s = MLP(F_s, F, F)
-        self.encoder_t = MLP(F_t, F, F)
+        self.encoder_s = MLP(F_s, Fdim, Fdim)
+        self.encoder_t = MLP(F_t, Fdim, Fdim)
 
         # Message passing blocks
-        self.mpb = torch.nn.Sequential(*(Block(F, normed=normed) for b in range(B)))
+        self.mpb = torch.nn.Sequential(*(Block(Fdim, normed=normed) for b in range(B)))
 
         # Decoders
-        self.decoder_e = MLP(F, F, 1)
-        self.decoder_s = MLP(F, F, T)
+        self.decoder_e = MLP(Fdim, Fdim, 1)
+        self.decoder_s = MLP(Fdim, Fdim, T)
 
     def forward(self, graph):
         """
