@@ -25,7 +25,7 @@ def softround(x, sharpness=20, noiselevel=0.3):
     x = intpart + torch.sigmoid(sharpness * (x - 0.5 - intpart))
     return x
 
-def loss_function(graph, class_info, penalty=1.0, sharpness=20, noiselevel=0.3, finaloutput=False):
+def loss_function(graph, class_info, pclass=0.1, pfiber=1.0, finaloutput=False):
     """
     time: [NCLASSES x NFIBERS], predicted t_{ik} for each fiber k, class i 
     properties: [NCLASSES, F_xt] where col1 is T_i and col2 is N_i
@@ -33,7 +33,7 @@ def loss_function(graph, class_info, penalty=1.0, sharpness=20, noiselevel=0.3, 
     """
 
     # compute time prediction for each fiber-class edge
-    time = gnn.edge_prediction(graph.x_e, scale=TOTAL_TIME/NCLASSES)
+    time = gnn.edge_prediction(graph.x_e, scale=TOTAL_TIME/NCLASSES).squeeze(-1)
 
     # unpack
     src, tgt = graph.edge_index
@@ -41,7 +41,7 @@ def loss_function(graph, class_info, penalty=1.0, sharpness=20, noiselevel=0.3, 
     # compute class‐wise soft visit counts n_i'
     T_i = class_info[:, 0]  # required hours per visit for each class
     N_i = class_info[:, 1] / NFIELDS # total number of galaxies in each class, per field
-    class_time = scatter(time.T, tgt, dim_size=graph.x_t.size(0), reduce='sum')
+    class_time = scatter(time, tgt, dim_size=NCLASSES, reduce='sum')
     n_prime = class_time / T_i # shape [NCLASSES]
 
     # soft rounding
@@ -52,14 +52,18 @@ def loss_function(graph, class_info, penalty=1.0, sharpness=20, noiselevel=0.3, 
     completeness = n_prime / N_i
     totutils = torch.min(completeness)
 
+    # penalty on per-class overallocation
+    class_over = torch.relu(n_prime - N_i)
+    class_penalty = pclass * torch.sum(class_over**2)
+
     # penalty on per‐fiber overtime
-    fiber_time = scatter(time.T, src, dim_size=graph.x_s.size(0), reduce='sum')
+    fiber_time = scatter(time, src, dim_size=NFIBERS, reduce='sum')
     overtime = fiber_time - TOTAL_TIME
-    leaky = nn.LeakyReLU()  # squared‐leaky‐ReLU: p(x) = (LeakyReLU(x))^2
-    penalty_term = penalty * torch.sum(leaky(overtime)**2)
+    leaky = nn.LeakyReLU(negative_slope=0.01)
+    fiber_penalty = pfiber * torch.sum(leaky(overtime)**2)
 
     # final loss
-    loss = -totutils + penalty_term
+    loss = -totutils + fiber_penalty + class_penalty
 
     if finaloutput:
         # optionally produce hard counts & diagnostics
@@ -101,7 +105,7 @@ if __name__ == '__main__':
         # backprop
         gnn.zero_grad()
         graph_ = gnn(graph)
-        loss, utility, completions[:,epoch], _, _ = loss_function(graph_, class_info, penalty=0.1, finaloutput=True)
+        loss, utility, completions[:,epoch], _, _ = loss_function(graph_, class_info, pclass=pclass, pfiber=pfiber, finaloutput=True)
         loss.backward()
         # print(f"Loss={loss.item():.4e}, Utility={utility:.4f}")
         optimizer.step()

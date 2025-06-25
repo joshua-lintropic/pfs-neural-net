@@ -35,7 +35,6 @@ def to_Graph(properties):
     edge_attr = []
     e_s = []  # source indices (fibers)
     e_t = []  # target indices (classes)
-    # reachable = np.ones(properties.shape[0], dtype=bool) # always reachable
 
     # Build complete edges: every fiber->class yields an edge
     for i in range(properties.shape[0]):
@@ -43,8 +42,6 @@ def to_Graph(properties):
             e_s.append(fiber_idx)
             e_t.append(i)
             edge_attr.append(np.zeros(gnn.Fdim))
-        # reachable[i] = True
-    # print(f"e_t ({len(e_t)}):", set(e_t))
 
     # Convert to tensors and sort edges by source id (fiber)
     edge_attr = np.array(edge_attr)
@@ -52,7 +49,6 @@ def to_Graph(properties):
     edge_index = torch.tensor([e_s, e_t], dtype=torch.long)
     order = torch.argsort(edge_index[0])
     edge_attr = edge_attr[order]
-    # print(f"edge_attr ({edge_attr.shape}):", edge_attr)
     edge_index = edge_index[:, order]
 
     # Node features: fibers (zeros) and galaxies (properties of reachable ones)

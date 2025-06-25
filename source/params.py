@@ -16,4 +16,6 @@ TOTAL_TIME = 40 # per‑fiber time budget
 # === TRAINING PARAMETERS ===
 nepochs = 1000
 Fdim = 10 # lifted dimension
-lr = 1e-3
+lr = 1e-3 # learning rate
+pclass = 0.1
+pfiber = 0.1
