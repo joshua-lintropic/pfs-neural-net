@@ -1,14 +1,28 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import torch_geometric
 from torch_scatter import scatter
-from gnn import (GNN, Loader)
-import os
+from gnn import GNN, BipartiteData
 from params import *
-from format import bcolors
-from source.gnn import BipartiteData
 
+import matplotlib.pyplot as plt
+from datetime import datetime
+from tqdm import trange
+from format import bcolors
+import os
+
+# === DEVICE SPEFICIATIONS ===
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+    device = torch.device("mps")
+else:
+    device = torch.device("cpu")
+ncores = os.cpu_count() or 1
+os.environ['OMP_NUM_THREADS'] = str(ncores)
+os.environ['MKL_NUM_THREADS'] = str(ncores)
+torch.set_num_threads(ncores)
+torch.set_num_interop_threads(ncores)
 
 def softround(x, sharpness=20, noiselevel=0.3):
     noise = noiselevel * (torch.rand_like(x) - 0.5)
@@ -37,33 +51,32 @@ def loss_function(graph, class_info, penalty=1.0, sharpness=20, noiselevel=0.3, 
     n_prime = class_time / T_i # shape [NCLASSES]
 
     # soft rounding
-    #n = softround(n_prime, sharpness, noiselevel)
-    n = n_prime
+    # n = softround(n_prime, sharpness, noiselevel)
+    n = torch.round(n_prime)
 
     # class‐completeness = n_i / N_i
-    completeness = n / N_i
+    completeness = n_prime / N_i
     totutils = torch.min(completeness)
 
     # penalty on per‐fiber overtime
     fiber_time = scatter(time.T, src, dim_size=graph.x_s.size(0), reduce='sum')
     overtime = fiber_time - TOTAL_TIME
-    leaky = nn.ReLU()  # squared‐leaky‐ReLU: p(x) = (LeakyReLU(x))^2
+    leaky = nn.LeakyReLU()  # squared‐leaky‐ReLU: p(x) = (LeakyReLU(x))^2
     penalty_term = penalty * torch.sum(leaky(overtime)**2)
 
     # final loss
-    l = -totutils + penalty_term
+    loss = -totutils + penalty_term
 
     if finaloutput:
         # optionally produce hard counts & diagnostics
-        return l, totutils, n_prime, fiber_time
+        return loss, n / N_i, n, fiber_time
     else:
-        return l, totutils
+        return loss, totutils
 
 if __name__ == '__main__':
     # compute setup
     idx = int(os.environ.get("SLURM_ARRAY_TASK_ID", 0))
     ID = str(idx)
-    device = torch.device("mps")  # 'cuda' (gpu), 'mps' (apple silicon), 'cpu' (other)
 
     # * loading class info
     class_info = torch.tensor(np.loadtxt('../data/utils.txt'), dtype=torch.float, device=device)
@@ -75,7 +88,7 @@ if __name__ == '__main__':
     edge_index = torch.cartesian_prod(torch.arange(NFIBERS), torch.arange(NCLASSES)).to(device).T
 
     # dummy inits for edges and globals
-    F = 10 # lifted dimension
+    F = 15 # lifted dimension
     x_e = torch.zeros(NFIBERS * NCLASSES,F)
     x_u = torch.zeros(1, F)
 
@@ -91,13 +104,41 @@ if __name__ == '__main__':
     gnn.train()
 
     print(f'{bcolors.HEADER}STATUS: Start Pre-Training{bcolors.ENDC}')
-    optimizer = torch.optim.Adam(gnn.parameters(), lr=1e-3s)
-    for epoch in range(1000):
+    optimizer = torch.optim.Adam(gnn.parameters(), lr=1e-4)
+    losses = np.zeros(nepochs)
+    objective = np.zeros(nepochs)
+    for epoch in trange(nepochs, desc='Training GNN'):
+        # backprop
         gnn.zero_grad()
         graph_ = gnn(graph)
         loss, utility = loss_function(graph_, class_info, penalty=0.1)
         loss.backward()
-        print(f"Loss={loss.item():.4e}, Utility={utility:.4e}")
+        # print(f"Loss={loss.item():.4e}, Utility={utility:.4f}")
         optimizer.step()
-
+        # store for plotting
+        losses[epoch] = loss.item()
+        objective[epoch] = utility
     torch.save(gnn.state_dict(), '../models/model_gnn_pre' + ID + '.pth')
+    
+    # plot results
+    epochs = np.arange(1, nepochs + 1)
+    epochs_delayed = np.arange((start := min(50, nepochs // 10)), nepochs + 1)
+    plots = [
+        (epochs, losses, 'Epochs', 'Regularized Loss', 'red'),
+        (epochs_delayed, losses[start-1:], 'Epochs', 'Regularized Loss', 'blue'),
+        (epochs, objective, 'Epochs', 'Min Class Completion', 'green')
+    ]
+    fig, axes = plt.subplots(nrows=len(plots))
+    fig.suptitle(f'GNN Training Results for {nepochs} Epochs')
+    for i, (xs, ys, xlabel, ylabel, color) in enumerate(plots):
+        ax = axes[i]
+        ax.plot(xs, ys, color=color)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        if i != 1: continue
+        ax.set_xlim(start, nepochs)
+        step = max(1, (nepochs - start) // 5)
+        ax.set_xticks(np.arange(start, nepochs+1, step))
+    plt.tight_layout()
+    figname = datetime.now().strftime("%Y-%m-%d@%H:%M:%S")
+    plt.savefig(fname=f'../figures/{figname}.png', dpi=600)

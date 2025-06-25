@@ -66,16 +66,16 @@ class BipartiteData(torch_geometric.data.Data):
     def __init__(self, edge_index, x_s, x_t, x_e, x_u):
         super(BipartiteData, self).__init__()
         if edge_index is not None:
-            self.edge_index = edge_index
+            self.edge_index = edge_index.to(device)
         if x_s is not None:
-            self.x_s = x_s
+            self.x_s = x_s.to(device)
         if x_t is not None:
-            self.x_t = x_t
+            self.x_t = x_t.to(device)
             self.num_nodes = len(self.x_t)  # dummy to suppress warnings
         if x_e is not None:
-            self.x_e = x_e
+            self.x_e = x_e.to(device)
         if x_u is not None:
-            self.x_u = x_u
+            self.x_u = x_u.to(device)
 
     def __inc__(self, key, value, *args):
         """
@@ -90,7 +90,7 @@ class BipartiteData(torch_geometric.data.Data):
         """
         if key == 'edge_index':
             # Shift sources by N_s, targets by N_t when batching
-            return torch.tensor([[self.x_s.size(0)], [self.x_t.size(0)]])
+            return torch.tensor([[self.x_s.size(0)], [self.x_t.size(0)]]).to(device)
         else:
             return super().__inc__(key, value, *args)
 
@@ -124,7 +124,7 @@ class EdgeModel(MLP):
     edge features, and global features into updated edge embeddings.
     """
     def __init__(self, F=10, normed=True):
-        F_message = 4 * F
+        F_message = 4 * F # concatenate source, target, edge, global
         super(EdgeModel, self).__init__(F_message, F_message, F)
         if normed:
             self.norm = torch.nn.BatchNorm1d(F)

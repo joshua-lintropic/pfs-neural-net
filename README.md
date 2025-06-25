@@ -63,6 +63,8 @@ Roles of the relevant files:
     pip install torch-scatter -f https://data.pyg.org/whl/torch-2.7.0+cpu.html
     ```
 
+    Optionally, you can also run `pip install -r requirements.txt` for CPU builds. 
+
 ## Running the Code
 
 1. **Device Configuration**
