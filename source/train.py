@@ -25,23 +25,23 @@ def loss_function(graph, class_info, penalty=1.0, sharpness=20, noiselevel=0.3, 
     """
 
     # compute time prediction for each fiber-class edge
-    time = gnn.edge_prediction(graph.x_e)
+    time = gnn.edge_prediction(graph.x_e, scale=TOTAL_TIME/NCLASSES)
 
     # unpack
     src, tgt = graph.edge_index
 
     # compute class‐wise soft visit counts n_i'
     T_i = class_info[:, 0]  # required hours per visit for each class
-    N_i = class_info[:, 1]  # total number of galaxies in each class
+    N_i = class_info[:, 1] / NFIELDS # total number of galaxies in each class, per field
     class_time = scatter(time.T, tgt, dim_size=graph.x_t.size(0), reduce='sum')
     n_prime = class_time / T_i # shape [NCLASSES]
 
     # soft rounding
-    n = softround(n_prime, sharpness, noiselevel)
+    #n = softround(n_prime, sharpness, noiselevel)
+    n = n_prime
 
     # class‐completeness = n_i / N_i
     completeness = n / N_i
-    completeness = torch.clamp(completeness, 0.0, 1.0) # TODO: not needed if prediction is log(time)
     totutils = torch.min(completeness)
 
     # penalty on per‐fiber overtime
@@ -91,7 +91,7 @@ if __name__ == '__main__':
     gnn.train()
 
     print(f'{bcolors.HEADER}STATUS: Start Pre-Training{bcolors.ENDC}')
-    optimizer = torch.optim.Adam(gnn.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(gnn.parameters(), lr=1e-3s)
     for epoch in range(1000):
         gnn.zero_grad()
         graph_ = gnn(graph)

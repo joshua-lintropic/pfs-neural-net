@@ -352,17 +352,18 @@ class GNN(torch.nn.Module):
         # make new graph
         return BipartiteData(edge_index, x_s, x_t, x_e, x_u)
 
-    def edge_prediction(self, x_e):
+    def edge_prediction(self, x_e, scale=1):
         # Decode predicted time/numbers from edges
         pred = self.decoder_e(x_e)
         pred  = self.round(pred)
+        pred = torch.exp(pred) * scale # ensure positive numbers, scaled for better initial guesses
         return pred
 
-    def node_prediction(self, x_s, T_max=10):
+    def node_prediction(self, x_s, scale=1):
         # multi-class prediction for every fiber node
         pred = self.encoder_s(x_s) #
-        time = torch.softmax(pred, dim=-1) * T_max # sum up to T_max
-        time = self.round(time) # TODO: does not need to sum up to T_max!!!
+        time = torch.softmax(pred, dim=-1) * scale # sum up to scale
+        time = self.round(time) # TODO: does not need to sum up to scale!!!
         return time
 
     def round(self, x):
