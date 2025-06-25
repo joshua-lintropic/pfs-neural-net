@@ -14,5 +14,6 @@ NFIELDS = 10    # number of GE fields
 TOTAL_TIME = 40 # per‑fiber time budget
 
 # === TRAINING PARAMETERS ===
-nepochs = 10000
-Fdim = 15 # lifted dimension
+nepochs = 1000
+Fdim = 10 # lifted dimension
+lr = 1e-3

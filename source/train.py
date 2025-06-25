@@ -89,16 +89,11 @@ if __name__ == '__main__':
     # combine in graph
     graph = BipartiteData(edge_index=edge_index, x_s=x_s, x_t=x_t, x_e=x_e, x_u=x_u).to(device)
 
-    # pre-training loop ---
+    # training loop ---
     gnn = GNN(Fdim=Fdim, B=3, F_s=x_s.shape[1], F_t=x_t.shape[1], T=NCLASSES).to(device)
-    # try:
-    #     gnn.load_state_dict(torch.load('../models/model_gnn_pre' + ID + '.pth'))
-    # except FileNotFoundError:
-    #     print(f'{bcolors.WARNING}STATUS: No pre-trained checkpoint found.{bcolors.ENDC}')
     gnn.train()
 
-    print(f'{bcolors.HEADER}STATUS: Start Pre-Training{bcolors.ENDC}')
-    optimizer = torch.optim.Adam(gnn.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(gnn.parameters(), lr=lr)
     losses = np.zeros(nepochs)
     objective = np.zeros(nepochs)
     completions = np.zeros((NCLASSES, nepochs))
@@ -113,32 +108,56 @@ if __name__ == '__main__':
         # store for plotting
         losses[epoch] = loss.item()
         objective[epoch] = utility
-    torch.save(gnn.state_dict(), '../models/model_gnn_pre' + ID + '.pth')
+    now = datetime.now().strftime("%Y-%m-%d@%H-%M-%S")
+    torch.save(gnn.state_dict(), '../models/model_gnn_' + now + '.pth')
     
-    # plot results
+    # plot aggregate statistics
     epochs = np.arange(1, nepochs + 1)
-    epochs_delayed = np.arange((start := min(50, nepochs // 10)), nepochs + 1)
-    plots = [
+    epochs_delayed = np.arange((start := 1 + max(nepochs - 100, 0)), nepochs + 1)
+    plots_aggregate = [
         (epochs, losses, 'Epochs', 'Regularized Loss', 'red'),
         (epochs_delayed, losses[start-1:], 'Epochs', 'Regularized Loss', 'red'),
         (epochs, objective, 'Epochs', 'Min Class Completion', 'green')
     ]
-    cmap = plt.get_cmap('viridis', NCLASSES)
-    for i in range(completions.shape[0]):
-        plots.append(
-            (epochs, completions[i], 'Epochs', f'Class {i} Completion', cmap(i % cmap.N))
-        )
-    fig, axes = plt.subplots(nrows=len(plots))
-    fig.suptitle(f'GNN Training Results for {nepochs} Epochs')
-    for i, (xs, ys, xlabel, ylabel, color) in enumerate(plots):
+    nrows = len(plots_aggregate)
+    ncols = 1
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*4, nrows*3))
+    fig.suptitle(rf'$F = {Fdim}$, $\eta = {lr}$, $N_{{e}} = {nepochs}$')
+    for i, (xs, ys, xlabel, ylabel, color) in enumerate(plots_aggregate):
         ax = axes[i]
         ax.plot(xs, ys, color=color)
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        if i != 1: continue
-        ax.set_xlim(start, nepochs)
-        step = max(1, (nepochs - start) // 5)
-        ax.set_xticks(np.arange(start, nepochs+1, step))
+        if i == 1: 
+            ax.set_xlim(start, nepochs)
+            step = max(1, (nepochs - start) // 5)
+            ax.set_xticks(np.arange(start, nepochs+1, step))
+        ax.grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
     plt.tight_layout()
-    figname = datetime.now().strftime("%Y-%m-%d@%H:%M:%S")
-    plt.savefig(fname=f'../figures/{figname}.png', dpi=600)
+    plt.savefig(fname=f'../figures/A_{now}.png', dpi=600)
+
+    # plot per-class completion rates
+    cmap = plt.get_cmap('viridis', NCLASSES)
+    plots_class = []
+    for i in range(completions.shape[0]):
+        plots_class.append(
+            (epochs, completions[i], f'Class {i+1}', cmap(i % cmap.N))
+        )
+    ncols = 2
+    nrows = (NCLASSES + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*4, nrows*3)) # inches
+    axes = axes.flatten()
+    for idx, (xs, ys, title, color) in enumerate(plots_class):
+        ax = axes[idx]
+        ax.plot(xs, ys, color=color)
+        ax.set_title(title, fontsize=10)
+        ax.set_xlim(1, nepochs)
+        ax.grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
+    # remove any unused subplots
+    for ax in axes[len(plots_class):]:
+        fig.delaxes(ax)
+    plt.tight_layout(rect=[0.05, 0.025, 0.95, 0.95])
+    fig.supxlabel('Epochs')
+    fig.supylabel('Completion')
+    fig.suptitle(rf'$F = {Fdim}$, $\eta = {lr}$, $N_{{e}} = {nepochs}$')
+    plt.savefig(f'../figures/C_{now}.png', dpi=600)
