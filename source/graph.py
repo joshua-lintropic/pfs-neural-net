@@ -62,11 +62,11 @@ def to_Graph(properties):
 
     # Create and return the BipartiteData on GPU
     data = gnn.BipartiteData(
-        edge_index.to(device),
-        x_s.to(device),
-        x_t.to(device),
-        edge_attr.to(device),
-        u.to(device)
+        edge_index,
+        x_s,
+        x_t,
+        edge_attr,
+        u
     )
     return data
 
