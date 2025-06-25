@@ -60,7 +60,7 @@ def to_Graph(properties):
     x_t = torch.tensor(properties, dtype=torch.float)
     u = torch.zeros(1, gnn.Fdim, dtype=torch.float)
 
-    # Create and return the BipartiteData on GPU
+    # Create and return the BipartiteData
     data = gnn.BipartiteData(
         edge_index.to(device),
         x_s.to(device),
