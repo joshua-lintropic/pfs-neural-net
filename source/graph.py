@@ -41,7 +41,7 @@ def to_Graph(properties):
         for fiber_idx in range(NFIBERS):
             e_s.append(fiber_idx)
             e_t.append(i)
-            edge_attr.append(np.zeros(gnn.Fdim))
+            edge_attr.append(np.zeros(Fdim))
 
     # Convert to tensors and sort edges by source id (fiber)
     edge_attr = np.array(edge_attr)
@@ -52,9 +52,9 @@ def to_Graph(properties):
     edge_index = edge_index[:, order]
 
     # Node features: fibers (zeros) and galaxies (properties of reachable ones)
-    x_s = torch.randn(NFIBERS, gnn.Fdim, dtype=torch.float)
+    x_s = torch.zeros(NFIBERS, Fdim, dtype=torch.float)
     x_t = torch.tensor(properties, dtype=torch.float)
-    u = torch.zeros(1, gnn.Fdim, dtype=torch.float)
+    u = torch.zeros(1, Fdim, dtype=torch.float)
 
     # Create and return the BipartiteData
     data = gnn.BipartiteData(
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     BipartiteData graph, and saves to '../graphs/graph-<i>.pt'.
     """
     ngraph = 1
-    utils = np.loadtxt('../data/utils.txt')
+    utils = np.loadtxt('../' + datafile)
     utils = np.hstack((utils, np.zeros((utils.shape[0], Fdim - utils.shape[1]))))
     
     for igraph in range(ngraph):

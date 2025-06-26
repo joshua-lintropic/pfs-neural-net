@@ -1,6 +1,6 @@
 import torch
-import torch.nn.functional as F
 import torch_geometric
+import torch.nn.functional as F
 from torch_scatter import scatter, scatter_mean
 from params import *
 
@@ -75,25 +75,25 @@ class EdgeModel(MLP):
     Edge update module: combines source/node features, target/node features,
     edge features, and global features into updated edge embeddings.
     """
-    def __init__(self, F=10, normed=True):
-        F_message = 4 * F # concatenate source, target, edge, global
-        super(EdgeModel, self).__init__(F_message, F_message, F)
+    def __init__(self, Fdim=10, normed=True):
+        F_message = 4 * Fdim # concatenate source, target, edge, global
+        super(EdgeModel, self).__init__(F_message, F_message, Fdim)
         if normed:
-            self.norm = torch.nn.BatchNorm1d(F)
+            self.norm = torch.nn.BatchNorm1d(Fdim)
         else:
             self.norm = lambda x: x
 
     def forward(self, x_s, x_t, edge_index, edge_attr, u):
         """
         Args:
-            x_s (Tensor): Source-node embeddings [S, F].
-            x_t (Tensor): Target-node embeddings [T, F].
+            x_s (Tensor): Source-node embeddings [S, Fdim].
+            x_t (Tensor): Target-node embeddings [T, Fdim].
             edge_index (LongTensor): [2, E].
-            edge_attr (Tensor): Edge embeddings [E, F].
-            u (Tensor): Global embeddings [B, F].
+            edge_attr (Tensor): Edge embeddings [E, Fdim].
+            u (Tensor): Global embeddings [B, Fdim].
 
         Returns:
-            Tensor: Updated edge features [E, F].
+            Tensor: Updated edge features [E, Fdim].
         """
         src, tgt = edge_index
         E = edge_attr.size(0)
@@ -106,16 +106,16 @@ class SModel(torch.nn.Module):
     Source-node update: aggregates incoming edge messages (with statistics)
     and updates source-node embeddings.
     """
-    def __init__(self, F=10, normed=True):
+    def __init__(self, Fdim=10, normed=True):
         super(SModel, self).__init__()
-        F_message = 2 * F
+        F_message = 2 * Fdim
         self.node_mlp_1 = MLP(F_message, F_message, F_message)
 
-        F_message2 = 4 * F_message + 2 * F
-        self.node_mlp_2 = MLP(F_message2, F_message2, F)
+        F_message2 = 4 * F_message + 2 * Fdim
+        self.node_mlp_2 = MLP(F_message2, F_message2, Fdim)
 
         if normed:
-            self.norm = torch.nn.BatchNorm1d(F)
+            self.norm = torch.nn.BatchNorm1d(Fdim)
         else:
             self.norm = lambda x: x
 
@@ -123,14 +123,14 @@ class SModel(torch.nn.Module):
     def forward(self, x_s, x_t, edge_index, edge_attr, u):
         """
         Args:
-            x_s (Tensor): Source embeddings [S, F].
-            x_t (Tensor): Target embeddings [T, F].
+            x_s (Tensor): Source embeddings [S, Fdim].
+            x_t (Tensor): Target embeddings [T, Fdimd].
             edge_index (LongTensor): [2, E].
-            edge_attr (Tensor): Edge embeddings [E, F].
-            u (Tensor): Global embeddings [B, F].
+            edge_attr (Tensor): Edge embeddings [E, Fdim].
+            u (Tensor): Global embeddings [B, Fdim].
 
         Returns:
-            Tensor: Updated source-node features [S, F].
+            Tensor: Updated source-node features [S, Fdim].
         """
         src, tgt = edge_index
         msg = torch.cat([x_t[tgt], edge_attr], dim=1)
@@ -138,7 +138,7 @@ class SModel(torch.nn.Module):
 
         # Count and aggregate stats of incoming messages
         mean = scatter(msg, src, dim=0, dim_size=x_s.size(0), reduce='mean')
-        var = F.relu(scatter(msg**2, src, dim=0, dim_size=x_s.size(0), reduce='mean') - mean**2)
+        var = F.leaky_relu(scatter(msg**2, src, dim=0, dim_size=x_s.size(0), reduce='mean') - mean**2)
         std = torch.sqrt(var + 1e-6)
         skew = scatter((msg - mean[src])**3, src, dim=0, dim_size=x_s.size(0), reduce='mean') / std**3
         kurt = scatter((msg - mean[src])**4, src, dim=0, dim_size=x_s.size(0), reduce='mean') / std**4
@@ -158,16 +158,16 @@ class TModel(torch.nn.Module):
     """
     Target-node update: sums incoming edge messages and updates target-node embeddings.
     """
-    def __init__(self, F=10, normed=True):
+    def __init__(self, Fdim=10, normed=True):
         super(TModel, self).__init__()
-        F_message = 2 * F
+        F_message = 2 * Fdim
         self.node_mlp_1 = MLP(F_message, F_message, F_message)
 
-        F_message2 = 4 * F
-        self.node_mlp_2 = MLP(F_message2, F_message2, F)
+        F_message2 = 4 * Fdim
+        self.node_mlp_2 = MLP(F_message2, F_message2, Fdim)
 
         if normed:
-            self.norm = torch.nn.BatchNorm1d(F)
+            self.norm = torch.nn.BatchNorm1d(Fdim)
         else:
             self.norm = lambda x: x
 
@@ -175,14 +175,14 @@ class TModel(torch.nn.Module):
     def forward(self, x_s, x_t, edge_index, edge_attr, u):
         """
         Args:
-            x_s (Tensor): Source embeddings [S, F].
-            x_t (Tensor): Target embeddings [T, F].
+            x_s (Tensor): Source embeddings [S, Fdim].
+            x_t (Tensor): Target embeddings [T, Fdim].
             edge_index (LongTensor): [2, E].
-            edge_attr (Tensor): Edge embeddings [E, F].
-            u (Tensor): Global embeddings [B, F].
+            edge_attr (Tensor): Edge embeddings [E, Fdim].
+            u (Tensor): Global embeddings [B, Fdim].
 
         Returns:
-            Tensor: Updated target-node features [T, F].
+            Tensor: Updated target-node features [T, Fdim].
         """
         src, tgt = edge_index
         msg = torch.cat([x_s[src], edge_attr], dim=1)
@@ -196,11 +196,11 @@ class GlobalModel(MLP):
     """
     Graph-level update: pools node embeddings to update global features.
     """
-    def __init__(self, F=10, normed=True):
-        F_message = 3 * F
-        super(GlobalModel, self).__init__(F_message, F_message, F)
+    def __init__(self, Fdim=10, normed=True):
+        F_message = 3 * Fdim
+        super(GlobalModel, self).__init__(F_message, F_message, Fdim)
         if normed:
-            self.norm = torch.nn.RMSNorm(F)
+            self.norm = torch.nn.RMSNorm(Fdim)
         else:
             self.norm = lambda x: x
 
@@ -208,11 +208,11 @@ class GlobalModel(MLP):
     def forward(self, x_s, x_t, edge_index, edge_attr, u):
         """
         Args:
-            x_s (Tensor): Updated source-node features [S, F].
-            x_t (Tensor): Updated target-node features [T, F].
+            x_s (Tensor): Updated source-node features [S, Fdim].
+            x_t (Tensor): Updated target-node features [T, Fdim].
             edge_index (LongTensor): [2, E].
-            edge_attr (Tensor): Updated edge features [E, F].
-            u (Tensor): Previous global features [B, F].
+            edge_attr (Tensor): Updated edge features [E, Fdim].
+            u (Tensor): Previous global features [B, Fdim].
 
         Returns:
             Tensor: Updated global features [B, F_u].
@@ -228,17 +228,17 @@ class Block(torch.nn.Module):
     A single MetaLayer block combining edge, source-node, target-node,
     and global update modules.
     """
-    def __init__(self, F=10, e_model=True, s_model=True, t_model=True, u_model=True, normed=True):
+    def __init__(self, Fdim=10, e_model=True, s_model=True, t_model=True, u_model=True, normed=True):
         super(Block, self).__init__()
 
         if e_model:
-            self.edge_model = EdgeModel(F, normed=normed)
+            self.edge_model = EdgeModel(Fdim, normed=normed)
         if s_model:
-            self.s_model = SModel(F, normed=normed)
+            self.s_model = SModel(Fdim, normed=normed)
         if t_model:
-            self.t_model = TModel(F, normed=normed)
+            self.t_model = TModel(Fdim, normed=normed)
         if u_model:
-            self.global_model = GlobalModel(F, normed=normed)
+            self.global_model = GlobalModel(Fdim, normed=normed)
 
     def forward(self, args):
         """
@@ -307,13 +307,13 @@ class GNN(torch.nn.Module):
     def edge_prediction(self, x_e, scale=1):
         # Decode predicted time/numbers from edges
         pred = self.decoder_e(x_e)
-        pred  = self.round(pred)
-        pred = torch.exp(pred) * scale # ensure positive numbers, scaled for better initial guesses
+        pred = self.round(pred)
+        pred = F.softplus(pred) * scale # ensure positive numbers, scaled for better initial guesses
         return pred
 
     def node_prediction(self, x_s, scale=1):
         # multi-class prediction for every fiber node
-        pred = self.encoder_s(x_s) #
+        pred = self.decoder_s(x_s) #
         time = torch.softmax(pred, dim=-1) * scale # sum up to scale
         time = self.round(time) # TODO: does not need to sum up to scale!!!
         return time

@@ -50,6 +50,7 @@ def loss_function(graph, class_info, pclass=0.1, pfiber=1.0, finaloutput=False):
 
     # class‐completeness = n_i / N_i
     completeness = n_prime / N_i
+    # totutils = torch.min(completeness)
     totutils = torch.min(completeness)
 
     # penalty on per-class overallocation
@@ -58,17 +59,19 @@ def loss_function(graph, class_info, pclass=0.1, pfiber=1.0, finaloutput=False):
 
     # penalty on per‐fiber overtime
     fiber_time = scatter(time, src, dim_size=NFIBERS, reduce='sum')
+    leaky = nn.LeakyReLU(negative_slope=0.1)
     overtime = fiber_time - TOTAL_TIME
-    leaky = nn.LeakyReLU(negative_slope=0.01)
     fiber_penalty = pfiber * torch.sum(leaky(overtime)**2)
 
     # final loss
-    loss = -totutils + fiber_penalty + class_penalty
+    loss = -wutils * totutils + fiber_penalty + class_penalty
 
     if finaloutput:
         # optionally produce hard counts & diagnostics
-        hard_counts = (n / N_i).detach().cpu().numpy()
-        return loss, totutils, hard_counts, n, fiber_time
+        utils = torch.min(completeness)
+        comp = (n / N_i).detach().cpu().numpy()
+        fibers = fiber_time.detach().cpu().numpy()
+        return loss, utils, comp, n, fibers 
     else:
         return loss, totutils
 
@@ -78,7 +81,7 @@ if __name__ == '__main__':
     ID = str(idx)
 
     # * loading class info
-    class_info = torch.tensor(np.loadtxt('../data/utils.txt'), dtype=torch.float, device=device)
+    class_info = torch.tensor(np.loadtxt('../' + datafile), dtype=torch.float, device=device)
     x_t = class_info
     # * fiber info: trivial counter so far
     x_s = torch.arange(NFIBERS, dtype=torch.float, device=device).reshape(-1, 1)
@@ -93,27 +96,43 @@ if __name__ == '__main__':
     # combine in graph
     graph = BipartiteData(edge_index=edge_index, x_s=x_s, x_t=x_t, x_e=x_e, x_u=x_u).to(device)
 
-    # training loop ---
+    # initialize model
     gnn = GNN(Fdim=Fdim, B=3, F_s=x_s.shape[1], F_t=x_t.shape[1], T=NCLASSES).to(device)
     gnn.train()
 
+    # optimizers
     optimizer = torch.optim.Adam(gnn.parameters(), lr=lr)
+    # stored for analysis 
     losses = np.zeros(nepochs)
     objective = np.zeros(nepochs)
     completions = np.zeros((NCLASSES, nepochs))
-    for epoch in trange(nepochs, desc='Training GNN'):
+    fiber_time = np.zeros(NFIBERS)
+    for epoch in trange(nepochs, desc=f'Training GNN ({str(device).upper()})'):
         # backprop
         gnn.zero_grad()
         graph_ = gnn(graph)
-        loss, utility, completions[:,epoch], _, _ = loss_function(graph_, class_info, pclass=pclass, pfiber=pfiber, finaloutput=True)
+        loss, utility, completions[:,epoch], _, fiber_time = loss_function(graph_, class_info, pclass=pclass, pfiber=pfiber, finaloutput=True)
+        # if epoch % (nepochs // 10)== 0: 
+        #     print(f'Epoch {epoch}: Loss={loss.item():.4e}, Utility={utility:.4f}')
+        # update parameters
         loss.backward()
-        # print(f"Loss={loss.item():.4e}, Utility={utility:.4f}")
         optimizer.step()
         # store for plotting
         losses[epoch] = loss.item()
         objective[epoch] = utility
     now = datetime.now().strftime("%Y-%m-%d@%H-%M-%S")
-    torch.save(gnn.state_dict(), '../models/model_gnn_' + now + '.pth')
+    # torch.save(gnn.state_dict(), '../models/model_gnn_' + now + '.pth')
+
+    # plot a histogram of the final fiber-time
+    plt.figure(figsize=(6, 4))
+    plt.hist(fiber_time, bins=30, color='blue', alpha=0.7)
+    plt.axvline(x=TOTAL_TIME, color='red', linestyle='--', label='TOTAL_TIME')
+    plt.xlabel('Fiber Time')
+    plt.ylabel('Frequency')
+    plt.title(rf'Final Fiber Time ($K = {fiber_time.shape[0]}$)')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f'../figures/B_{now}.png', dpi=600)
     
     # plot aggregate statistics
     epochs = np.arange(1, nepochs + 1)
@@ -143,9 +162,10 @@ if __name__ == '__main__':
     # plot per-class completion rates
     cmap = plt.get_cmap('viridis', NCLASSES)
     plots_class = []
+    class_info = class_info.detach().cpu().numpy()
     for i in range(completions.shape[0]):
         plots_class.append(
-            (epochs, completions[i], f'Class {i+1}', cmap(i % cmap.N))
+            (epochs, completions[i], rf'Class {i+1} ($N_{{{i}}} = {int(class_info[i][1])}$)', cmap(i % cmap.N))
         )
     ncols = 2
     nrows = (NCLASSES + ncols - 1) // ncols
