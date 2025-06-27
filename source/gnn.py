@@ -313,7 +313,7 @@ class GNN(torch.nn.Module):
 
     def node_prediction(self, x_s, scale=1):
         # multi-class prediction for every fiber node
-        pred = self.decoder_s(x_s) #
+        pred = self.decoder_s(x_s) # look at this
         time = torch.softmax(pred, dim=-1) * scale # sum up to scale
         time = self.round(time) # TODO: does not need to sum up to scale!!!
         return time

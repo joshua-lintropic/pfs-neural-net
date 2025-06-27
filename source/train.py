@@ -8,7 +8,6 @@ from params import *
 import matplotlib.pyplot as plt
 from datetime import datetime
 from tqdm import trange
-from format import bcolors
 import os
 
 # === DEVICE SPEFICIATIONS ===
@@ -112,14 +111,21 @@ if __name__ == '__main__':
         gnn.zero_grad()
         graph_ = gnn(graph)
         loss, utility, completions[:,epoch], _, fiber_time = loss_function(graph_, class_info, pclass=pclass, pfiber=pfiber, finaloutput=True)
-        # if epoch % (nepochs // 10)== 0: 
-        #     print(f'Epoch {epoch}: Loss={loss.item():.4e}, Utility={utility:.4f}')
         # update parameters
         loss.backward()
         optimizer.step()
         # store for plotting
         losses[epoch] = loss.item()
         objective[epoch] = utility
+    
+    # print final results
+    print(f'Final: Loss={losses[-1].item():.4e}, Utility={objective[-1]:.4f}')
+    print(f'Completions: {completions[:,nepochs-1]}')
+
+    # print theoretical optimum
+    upper_bound = NFIBERS * TOTAL_TIME / torch.sum(torch.prod(class_info, dim=1)) * NFIELDS
+    print(f'Upper Bound on Min Class Completion (Utility): {upper_bound}')
+    
     now = datetime.now().strftime("%Y-%m-%d@%H-%M-%S")
     # torch.save(gnn.state_dict(), '../models/model_gnn_' + now + '.pth')
 
