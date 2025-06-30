@@ -44,7 +44,7 @@ def loss_function(graph, class_info, pclass=0.1, pfiber=1.0, finaloutput=False):
     n_prime = class_time / T_i # shape [NCLASSES]
 
     # soft rounding
-    # n = softround(n_prime, sharpness, noiselevel)
+    n_prime = softround(n_prime)
     n = torch.round(n_prime)
 
     # class‐completeness = n_i / N_i
@@ -58,8 +58,8 @@ def loss_function(graph, class_info, pclass=0.1, pfiber=1.0, finaloutput=False):
 
     # penalty on per‐fiber overtime
     fiber_time = scatter(time, src, dim_size=NFIBERS, reduce='sum')
-    leaky = nn.LeakyReLU(negative_slope=0.1)
     overtime = fiber_time - TOTAL_TIME
+    leaky = nn.LeakyReLU(negative_slope=0.1)
     fiber_penalty = pfiber * torch.sum(leaky(overtime)**2)
 
     # final loss
@@ -70,7 +70,7 @@ def loss_function(graph, class_info, pclass=0.1, pfiber=1.0, finaloutput=False):
         utils = torch.min(completeness)
         comp = (n / N_i).detach().cpu().numpy()
         fibers = fiber_time.detach().cpu().numpy()
-        return loss, utils, comp, n, fibers 
+        return loss, utils, comp, n, fibers, time
     else:
         return loss, totutils
 
@@ -105,21 +105,32 @@ if __name__ == '__main__':
     losses = np.zeros(nepochs)
     objective = np.zeros(nepochs)
     completions = np.zeros((NCLASSES, nepochs))
-    fiber_time = np.zeros(NFIBERS)
+    best_utility = 0.0
+    best_loss = 0.0
+    best_times = np.zeros(NCLASSES * NFIBERS)
+    best_fiber_time = np.zeros(NFIBERS)
+    best_completion = np.zeros(NCLASSES)
+    # training loop
     for epoch in trange(nepochs, desc=f'Training GNN ({str(device).upper()})'):
         # backprop
         gnn.zero_grad()
         graph_ = gnn(graph)
-        loss, utility, completions[:,epoch], _, fiber_time = loss_function(graph_, class_info, pclass=pclass, pfiber=pfiber, finaloutput=True)
+        loss, utility, completions[:,epoch], _, fiber_time, time = loss_function(graph_, class_info, pclass=pclass, pfiber=pfiber, finaloutput=True)
         # update parameters
         loss.backward()
         optimizer.step()
         # store for plotting
         losses[epoch] = loss.item()
         objective[epoch] = utility
+        if utility > best_utility: 
+            best_loss = loss.item()
+            best_utility = utility
+            best_times = time
+            best_fiber_time = fiber_time
+            best_completion = completions[:,epoch]
     
     # print final results
-    print(f'Final: Loss={losses[-1].item():.4e}, Utility={objective[-1]:.4f}')
+    print(f'Best: Loss={best_loss:.4e}, Utility={best_utility:.4f}')
     print(f'Completions: {completions[:,nepochs-1]}')
 
     # print theoretical optimum
@@ -129,18 +140,18 @@ if __name__ == '__main__':
     now = datetime.now().strftime("%Y-%m-%d@%H-%M-%S")
     # torch.save(gnn.state_dict(), '../models/model_gnn_' + now + '.pth')
 
-    # plot a histogram of the final fiber-time
+    # === PLOT FINAL FIBER-TIME HISTOGRAM === #
     plt.figure(figsize=(6, 4))
-    plt.hist(fiber_time, bins=30, color='blue', alpha=0.7)
+    plt.hist(best_fiber_time, bins=30, color='blue', alpha=0.7)
     plt.axvline(x=TOTAL_TIME, color='red', linestyle='--', label='TOTAL_TIME')
     plt.xlabel('Fiber Time')
     plt.ylabel('Frequency')
-    plt.title(rf'Final Fiber Time ($K = {fiber_time.shape[0]}$)')
+    plt.title(rf'Final Fiber Time ($K = {best_fiber_time.shape[0]}$)')
     plt.legend()
     plt.tight_layout()
     plt.savefig(f'../figures/B_{now}.png', dpi=600)
     
-    # plot aggregate statistics
+    # === PLOT AGGREGATE STATISTICS ===
     epochs = np.arange(1, nepochs + 1)
     epochs_delayed = np.arange((start := 1 + max(nepochs - 100, 0)), nepochs + 1)
     plots_aggregate = [
@@ -161,11 +172,13 @@ if __name__ == '__main__':
             ax.set_xlim(start, nepochs)
             step = max(1, (nepochs - start) // 5)
             ax.set_xticks(np.arange(start, nepochs+1, step))
+        if i == 2:
+            ax.axhline(y=upper_bound.detach().cpu().numpy(), color='blue')
         ax.grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
     plt.tight_layout()
     plt.savefig(fname=f'../figures/A_{now}.png', dpi=600)
 
-    # plot per-class completion rates
+    # === PLOT PER-CLASS COMPLETION RATES === #
     cmap = plt.get_cmap('viridis', NCLASSES)
     plots_class = []
     class_info = class_info.detach().cpu().numpy()
@@ -191,3 +204,51 @@ if __name__ == '__main__':
     fig.supylabel('Completion')
     fig.suptitle(rf'$F = {Fdim}$, $\eta = {lr}$, $N_{{e}} = {nepochs}$')
     plt.savefig(f'../figures/C_{now}.png', dpi=600)
+
+    # === PLOT FIBER ACTIONS FOR RANDOM FIBERS === #
+    fibers_rand = np.random.randint(low=0, high=NFIBERS, size=(10,))
+    fibers_slice = np.array(list(range(5)) + list(range(NFIBERS-5,NFIBERS)))
+
+    def plot_fiber_actions(fibers, char):
+        dist = {k: time[k*NCLASSES:(k+1)*NCLASSES].detach().cpu().numpy() for k in fibers}
+        
+        # # compute the max‐value per fiber for sorting
+        # max_times = {k: dist[k].max() for k in fibers}
+        # sorted_fibers = sorted(fibers, key=lambda k: max_times[k], reverse=True)
+
+        # build a 2D array of shape (NFIBERS, NCLASSES)
+        data = np.vstack([dist[k] for k in fibers])
+
+        # cumulative sums for stacked offsets
+        cumulative = np.cumsum(data, axis=1)
+        # `left`` is zero for the first class, then previous cumulated for others
+        left = np.hstack([np.zeros((data.shape[0],1)), cumulative[:,:-1]])
+
+        # colormap
+        cmap = plt.get_cmap('viridis', NCLASSES)
+        colors = [cmap(i % cmap.N) for i in range(NCLASSES)]
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+        y = np.arange(len(fibers))
+        for cls in range(NCLASSES):
+            ax.barh(
+                y,
+                data[:, cls],
+                left=left[:, cls],
+                height=0.8,
+                color=colors[cls],
+                label=f'Class {cls+1}'
+            )
+
+        # formatting
+        ax.set_yticks(y)
+        ax.set_yticklabels(fibers)
+        ax.invert_yaxis()
+        ax.set_xlabel('Time')
+        ax.set_title('Fiber Class-Times')
+        ax.legend(loc='best', bbox_to_anchor=(1, 0.5))
+        plt.tight_layout()
+        plt.savefig(f'../figures/{char}_{now}.png', dpi=600)
+    
+    plot_fiber_actions(fibers_rand, 'D')
+    plot_fiber_actions(fibers_slice, 'E')
