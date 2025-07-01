@@ -9,7 +9,7 @@ else:
     device = torch.device('cpu')
 
 # === DATAFILES === #
-datafile = 'data/pfs.txt'
+datafile = 'data/classes.txt'
 
 # === CONSTANTS === #
 NFIBERS = 2000  # number of fibers
