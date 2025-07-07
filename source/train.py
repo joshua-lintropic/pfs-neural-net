@@ -17,39 +17,37 @@ os.environ['MKL_NUM_THREADS'] = str(ncores)
 torch.set_num_threads(ncores)
 torch.set_num_interop_threads(ncores)
 
-def softround(x, sharpness=20, noiselevel=0.3):
-    noise = noiselevel * (torch.rand_like(x) - 0.5)
-    x = x + noise
-    intpart = torch.floor(x)
-    x = intpart + torch.sigmoid(sharpness * (x - 0.5 - intpart))
-    return x
+def softfloor(x, sharpness=20, noiselevel=0.3):
+    # noise = noiselevel * (torch.rand_like(x) - 0.5)
+    # x = x + noise
+    sharpness = x.new_tensor(sharpness)
+    pi = x.new_tensor(np.pi)
+    r = torch.where(sharpness == 0, torch.tensor(0.0, device=x.device), torch.exp(-1/sharpness))
+    return x - 1/pi * torch.arctan((r * torch.sin(2 * pi * x)) / (1 + r * torch.cos(2 * pi * x)))
 
-def loss_function(graph, class_info, pclass=0.1, pfiber=1.0, finaloutput=False):
+def loss_function(graph, class_info, pclass=0.1, pfiber=1.0, sharpness=0.5, finaloutput=False):
     """
     time: [NCLASSES x NFIBERS], predicted t_{ik} for each fiber k, class i 
     properties: [NCLASSES, F_xt] where col1 is T_i and col2 is N_i
     graph.edge_index: (src=fiber_idx, tgt=class_idx)
     """
-
-    # compute time prediction for each fiber-class edge
-    time = gnn.edge_prediction(graph.x_e, scale=TOTAL_TIME/NCLASSES).squeeze(-1)
-
-    # unpack
+        # unpack
     src, tgt = graph.edge_index
 
-    # compute class‐wise soft visit counts n_i'
+    # compute class‐wise soft visit counts 
     T_i = class_info[:, 0]  # required hours per visit for each class
     N_i = class_info[:, 1] / NFIELDS # total number of galaxies in each class, per field
-    class_time = scatter(time, tgt, dim_size=NCLASSES, reduce='sum')
-    n_prime = class_time / T_i # shape [NCLASSES]
+    time = gnn.edge_prediction(graph.x_e, scale=TOTAL_TIME/NCLASSES).squeeze(-1)
+    visited = time / T_i.unsqueeze(0).expand(NFIBERS, -1).reshape(-1)
 
-    # soft rounding
-    n_prime = softround(n_prime)
-    n = torch.round(n_prime)
+    # compute number of observed galaxies
+    galaxies = softfloor(visited, sharpness)
+    galaxies = torch.maximum(torch.full_like(galaxies, 0.0), galaxies)
+    n_prime = scatter(galaxies, tgt, dim_size=NCLASSES, reduce='sum')
+    # n = scatter(torch.floor(visited), tgt, dim_size=NCLASSES, reduce='sum')
 
     # class‐completeness = n_i / N_i
     completeness = n_prime / N_i
-    # totutils = torch.min(completeness)
     totutils = torch.min(completeness)
 
     # penalty on per-class overallocation
@@ -62,15 +60,19 @@ def loss_function(graph, class_info, pclass=0.1, pfiber=1.0, finaloutput=False):
     leaky = nn.LeakyReLU(negative_slope=0.1)
     fiber_penalty = pfiber * torch.sum(leaky(overtime)**2)
 
+    # encourage variance 
+    Time = time.reshape(NFIBERS, NCLASSES)
+    variance = torch.sum(torch.var(Time, dim=0))
+
     # final loss
-    loss = -wutils * totutils + fiber_penalty + class_penalty
+    loss = -wutils * totutils + fiber_penalty + class_penalty - wvar * variance
 
     if finaloutput:
         # optionally produce hard counts & diagnostics
         utils = torch.min(completeness)
-        comp = (n / N_i).detach().cpu().numpy()
+        comp = (n_prime / N_i).detach().cpu().numpy()
         fibers = fiber_time.detach().cpu().numpy()
-        return loss, utils, comp, n, fibers, time
+        return loss, utils, comp, n_prime, fibers, time, variance
     else:
         return loss, totutils
 
@@ -89,7 +91,10 @@ if __name__ == '__main__':
     edge_index = torch.cartesian_prod(torch.arange(NFIBERS), torch.arange(NCLASSES)).to(device).T
 
     # dummy inits for edges and globals
-    x_e = torch.zeros(NFIBERS * NCLASSES,Fdim).to(device)
+    lo = 2.0
+    hi = 10.0
+    # x_e = torch.zeros(NFIBERS * NCLASSES,Fdim).to(device)
+    x_e = lo + (hi - lo) * torch.rand(size=(NFIBERS * NCLASSES, Fdim)).to(device)
     x_u = torch.zeros(1, Fdim).to(device)
 
     # combine in graph
@@ -110,18 +115,22 @@ if __name__ == '__main__':
     best_times = np.zeros(NCLASSES * NFIBERS)
     best_fiber_time = np.zeros(NFIBERS)
     best_completion = np.zeros(NCLASSES)
+    variances = np.zeros(nepochs)
     # training loop
+    sharps = [0.0, 5.0]
     for epoch in trange(nepochs, desc=f'Training GNN ({str(device).upper()})'):
         # backprop
         gnn.zero_grad()
         graph_ = gnn(graph)
-        loss, utility, completions[:,epoch], _, fiber_time, time = loss_function(graph_, class_info, pclass=pclass, pfiber=pfiber, finaloutput=True)
+        sharp = sharps[0] + (sharps[1] - sharps[0]) * epoch / nepochs
+        loss, utility, completions[:,epoch], _, fiber_time, time, variance = loss_function(graph_, class_info, pclass=pclass, pfiber=pfiber, sharpness=sharp, finaloutput=True)
         # update parameters
         loss.backward()
         optimizer.step()
         # store for plotting
         losses[epoch] = loss.item()
         objective[epoch] = utility
+        variances[epoch] = variance
         if utility > best_utility: 
             best_loss = loss.item()
             best_utility = utility
@@ -157,7 +166,8 @@ if __name__ == '__main__':
     plots_aggregate = [
         (epochs, losses, 'Epochs', 'Regularized Loss', 'red'),
         (epochs_delayed, losses[start-1:], 'Epochs', 'Regularized Loss', 'red'),
-        (epochs, objective, 'Epochs', 'Min Class Completion', 'green')
+        (epochs, objective, 'Epochs', 'Min Class Completion', 'green'),
+        (epochs, variances, 'Epochs', 'Variance', 'blue')
     ]
     nrows = len(plots_aggregate)
     ncols = 1
