@@ -18,8 +18,8 @@ torch.set_num_threads(ncores)
 torch.set_num_interop_threads(ncores)
 
 def softfloor(x, sharpness=20, noiselevel=0.3):
-    # noise = noiselevel * (torch.rand_like(x) - 0.5)
-    # x = x + noise
+    noise = noiselevel * (torch.rand_like(x) - 0.5)
+    x = x + noise
     sharpness = x.new_tensor(sharpness)
     pi = x.new_tensor(np.pi)
     r = torch.where(sharpness == 0, torch.tensor(0.0, device=x.device), torch.exp(-1/sharpness))
