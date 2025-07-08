@@ -23,7 +23,7 @@ def softfloor(x, sharpness=20, noiselevel=0.3):
     sharpness = x.new_tensor(sharpness)
     pi = x.new_tensor(np.pi)
     r = torch.where(sharpness == 0, torch.tensor(0.0, device=x.device), torch.exp(-1/sharpness))
-    return x - 1/pi * torch.arctan((r * torch.sin(2 * pi * x)) / (1 + r * torch.cos(2 * pi * x)))
+    return x + 1 / pi * (torch.arctan(r * torch.sin(2 * pi * x) / (1 - r * torch.cos(2 * pi * x))) - torch.arctan(r / (torch.ones_like(r) - r)))
 
 def loss_function(graph, class_info, pclass=0.1, pfiber=1.0, sharpness=0.5, finaloutput=False):
     """
