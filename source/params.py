@@ -10,6 +10,7 @@ else:
 
 # === DATAFILES === #
 datafile = 'data/increasing.txt'
+logfile = '../models/log.txt'
 
 # === CONSTANTS === #
 NFIBERS = 2000  # number of fibers

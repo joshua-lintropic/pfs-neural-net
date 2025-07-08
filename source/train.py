@@ -106,6 +106,7 @@ if __name__ == '__main__':
 
     # optimizers
     optimizer = torch.optim.Adam(gnn.parameters(), lr=lr)
+
     # stored for analysis 
     losses = np.zeros(nepochs)
     objective = np.zeros(nepochs)
@@ -116,6 +117,7 @@ if __name__ == '__main__':
     best_fiber_time = np.zeros(NFIBERS)
     best_completion = np.zeros(NCLASSES)
     variances = np.zeros(nepochs)
+
     # training loop
     sharps = [0.0, 5.0]
     for epoch in trange(nepochs, desc=f'Training GNN ({str(device).upper()})'):
@@ -138,16 +140,18 @@ if __name__ == '__main__':
             best_fiber_time = fiber_time
             best_completion = completions[:,epoch]
     
-    # print final results
-    print(f'Best: Loss={best_loss:.4e}, Utility={best_utility:.4f}')
-    print(f'Completions: {completions[:,nepochs-1]}')
-
-    # print theoretical optimum
-    upper_bound = NFIBERS * TOTAL_TIME / torch.sum(torch.prod(class_info, dim=1)) * NFIELDS
-    print(f'Upper Bound on Min Class Completion (Utility): {upper_bound}')
-    
+    # write final results to output log
     now = datetime.now().strftime("%Y-%m-%d@%H-%M-%S")
-    # torch.save(gnn.state_dict(), '../models/model_gnn_' + now + '.pth')
+    upper_bound = NFIBERS * TOTAL_TIME / torch.sum(torch.prod(class_info, dim=1)) * NFIELDS
+    with open(logfile, 'w') as f:
+        f.write(f'TIMESTAMP: {now}\n')
+        f.write(f'Best: Loss={best_loss:.4e}, Utility={best_utility:.4f}\n')
+        f.write(f'Completions: {completions[:,nepochs-1]}\n')
+        f.write(f'Upper Bound on Min Class Completion (Utility): {upper_bound}\n')
+
+    # checkpoint the model
+    model_idx = 0
+    torch.save(gnn.state_dict(), '../models/model_gnn_' + str(model_idx) + '.pth')
 
     # === PLOT FINAL FIBER-TIME HISTOGRAM === #
     plt.figure(figsize=(6, 4))
