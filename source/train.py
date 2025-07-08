@@ -143,15 +143,14 @@ if __name__ == '__main__':
     # write final results to output log
     now = datetime.now().strftime("%Y-%m-%d@%H-%M-%S")
     upper_bound = NFIBERS * TOTAL_TIME / torch.sum(torch.prod(class_info, dim=1)) * NFIELDS
-    with open(logfile, 'w') as f:
+    with open('../' + logfile, 'w') as f:
         f.write(f'TIMESTAMP: {now}\n')
         f.write(f'Best: Loss={best_loss:.4e}, Utility={best_utility:.4f}\n')
         f.write(f'Completions: {completions[:,nepochs-1]}\n')
         f.write(f'Upper Bound on Min Class Completion (Utility): {upper_bound}\n')
 
     # checkpoint the model
-    model_idx = 0
-    torch.save(gnn.state_dict(), '../models/model_gnn_' + str(model_idx) + '.pth')
+    torch.save(gnn.state_dict(), '../models/model_gnn_' + ID + '.pth')
 
     # === PLOT FINAL FIBER-TIME HISTOGRAM === #
     plt.figure(figsize=(6, 4))

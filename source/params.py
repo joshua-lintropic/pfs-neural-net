@@ -10,7 +10,7 @@ else:
 
 # === DATAFILES === #
 datafile = 'data/increasing.txt'
-logfile = '../models/log.txt'
+logfile = 'models/log.txt'
 
 # === CONSTANTS === #
 NFIBERS = 2000  # number of fibers
@@ -21,7 +21,7 @@ TOTAL_TIME = 42 # per‑fiber time budget
 # === TRAINING PARAMETERS === #
 nepochs = 10000
 Fdim = 10 # lifted dimension
-lr = 1e-3 # learning rate
+lr = 5e-4 # learning rate
 pclass = 0.1 # penalty coefficient for class over-utilization
 pfiber = 0.1 # penalty coefficient for fiber over-utilization
 wutils = 1000.0
