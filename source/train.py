@@ -31,7 +31,7 @@ def loss_function(graph, class_info, pclass=0.1, pfiber=1.0, sharpness=0.5, fina
     properties: [NCLASSES, F_xt] where col1 is T_i and col2 is N_i
     graph.edge_index: (src=fiber_idx, tgt=class_idx)
     """
-        # unpack
+    # unpack
     src, tgt = graph.edge_index
 
     # compute class‐wise soft visit counts 
@@ -119,7 +119,6 @@ if __name__ == '__main__':
     variances = np.zeros(nepochs)
 
     # training loop
-    sharps = [0.0, 5.0]
     for epoch in trange(nepochs, desc=f'Training GNN ({str(device).upper()})'):
         # backprop
         gnn.zero_grad()
@@ -143,7 +142,7 @@ if __name__ == '__main__':
     # write final results to output log
     now = datetime.now().strftime("%Y-%m-%d@%H-%M-%S")
     upper_bound = NFIBERS * TOTAL_TIME / torch.sum(torch.prod(class_info, dim=1)) * NFIELDS
-    with open('../' + logfile, 'w') as f:
+    with open('../figures/L_' + now + '.txt', 'w') as f:
         f.write(f'TIMESTAMP: {now}\n')
         f.write(f'Best: Loss={best_loss:.4e}, Utility={best_utility:.4f}\n')
         f.write(f'Completions: {completions[:,nepochs-1]}\n')
