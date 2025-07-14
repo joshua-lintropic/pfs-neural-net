@@ -113,7 +113,7 @@ if __name__ == '__main__':
     completions = np.zeros((NCLASSES, nepochs))
     best_utility = 0.0
     best_loss = 0.0
-    best_times = np.zeros(NCLASSES * NFIBERS)
+    best_time = np.zeros(NCLASSES * NFIBERS)
     best_fiber_time = np.zeros(NFIBERS)
     best_completion = np.zeros(NCLASSES)
     variances = np.zeros(nepochs)
@@ -135,7 +135,7 @@ if __name__ == '__main__':
         if utility > best_utility: 
             best_loss = loss.item()
             best_utility = utility
-            best_times = time
+            best_time = time
             best_fiber_time = fiber_time
             best_completion = completions[:,epoch]
     
@@ -222,7 +222,7 @@ if __name__ == '__main__':
     fibers_slice = np.array(list(range(5)) + list(range(NFIBERS-5,NFIBERS)))
 
     def plot_fiber_actions(fibers, char):
-        dist = {k: time[k*NCLASSES:(k+1)*NCLASSES].detach().cpu().numpy() for k in fibers}
+        dist = {k: best_time[k*NCLASSES:(k+1)*NCLASSES].detach().cpu().numpy() for k in fibers}
         
         # # compute the max‐value per fiber for sorting
         # max_times = {k: dist[k].max() for k in fibers}
