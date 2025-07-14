@@ -37,14 +37,16 @@ def loss_function(graph, class_info, pclass=0.1, pfiber=1.0, sharpness=0.5, fina
 
     # compute class‐wise soft visit counts 
     T_i = class_info[:, 0]  # required hours per visit for each class
+    T_i = T_i.unsqueeze(0).expand(NFIBERS, -1).reshape(-1)
     N_i = class_info[:, 1] / NFIELDS # total number of galaxies in each class, per field
     time = gnn.edge_prediction(graph.x_e, scale=TOTAL_TIME/NCLASSES).squeeze(-1)
-    visited = time / T_i.unsqueeze(0).expand(NFIBERS, -1).reshape(-1)
+    visited = time / T_i
 
     # compute number of observed galaxies
     galaxies = softfloor(visited, sharpness)
     galaxies = torch.maximum(torch.full_like(galaxies, 0.0), galaxies)
     n_prime = scatter(galaxies, tgt, dim_size=NCLASSES, reduce='sum')
+    time = galaxies * T_i
     # n = scatter(torch.floor(visited), tgt, dim_size=NCLASSES, reduce='sum')
 
     # class‐completeness = n_i / N_i

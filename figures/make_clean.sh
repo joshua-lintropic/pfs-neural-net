@@ -1,10 +1,6 @@
 #!/bin/bash
 
 for prefix in A B C D E L; do
-    rm prefix.*
-done
-
-for prefix in A B C D E L; do
     for ext in png txt; do
         echo "Processing type: ${prefix} with extension: ${ext}"
         files=( $(ls ${prefix}_*.${ext} 2>/dev/null | sort) )
