@@ -3,12 +3,13 @@ import torch
 import torch.nn as nn
 from torch_scatter import scatter
 from gnn import GNN, BipartiteData
-from hyperparams import *
+from config import *
 
 import matplotlib.pyplot as plt
 from datetime import datetime
 from tqdm import trange
 import os
+import sys
 
 # === DEVICE SPEFICIATIONS ===
 ncores = os.cpu_count() or 1
@@ -82,7 +83,7 @@ if __name__ == '__main__':
     ID = str(idx)
 
     # * loading class info
-    class_info = torch.tensor(np.loadtxt('../' + datafile), dtype=torch.float, device=device)
+    class_info = torch.tensor(np.loadtxt(datafile), dtype=torch.float, device=device)
     x_t = class_info
     # * fiber info: trivial counter so far
     x_s = torch.arange(NFIBERS, dtype=torch.float, device=device).reshape(-1, 1)
@@ -119,7 +120,14 @@ if __name__ == '__main__':
     variances = np.zeros(nepochs)
 
     # training loop
-    for epoch in trange(nepochs, desc=f'Training GNN ({str(device).upper()})'):
+    start_epoch = 0
+    model_path = sys.argv[1] if len(sys.argv) > 1 else ""
+    if model_path:
+        checkpoint = torch.load(model_path, map_location=device)
+        gnn.load_state_dict(checkpoint['model_state'])
+        optimizer.load_state_dict(checkpoint['optim_state'])
+        start_epoch = checkpoint['epoch'] + 1
+    for epoch in trange(start_epoch, nepochs, desc=f'Training GNN ({str(device).upper()})'):
         # backprop
         gnn.zero_grad()
         graph_ = gnn(graph)
@@ -133,11 +141,26 @@ if __name__ == '__main__':
         objective[epoch] = utility
         variances[epoch] = variance
         if utility > best_utility and sharp > min_sharp: 
+            # update bests
             best_loss = loss.item()
             best_utility = utility
             best_time = time
             best_fiber_time = fiber_time
             best_completion = completions[:,epoch]
+            # checkpoint the model
+            torch.save({
+                'epoch': epoch, 
+                'model_state': gnn.state_dict(),
+                'optim_state': optimizer.state_dict()
+            }, checkpoint_path + ID + '.pth')
+
+    # checkpoint the final model
+    torch.save({
+        'epoch': nepochs, 
+        'model_state': gnn.state_dict(),
+        'optim_state': optimizer.state_dict()
+    }, checkpoint_path + ID + '.pth')
+
     
     # write final results to output log
     now = datetime.now().strftime("%Y-%m-%d@%H-%M-%S")
@@ -147,9 +170,6 @@ if __name__ == '__main__':
         f.write(f'Best: Loss={best_loss:.4e}, Utility={best_utility:.4f}\n')
         f.write(f'Completions: {completions[:,nepochs-1]}\n')
         f.write(f'Upper Bound on Min Class Completion (Utility): {upper_bound}\n')
-
-    # checkpoint the model
-    torch.save(gnn.state_dict(), '../models/model_gnn_' + ID + '.pth')
 
     # === PLOT FINAL FIBER-TIME HISTOGRAM === #
     plt.figure(figsize=(6, 4))

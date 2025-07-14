@@ -8,8 +8,9 @@ elif getattr(torch.backends, 'mps', None) and torch.backends.mps.is_available():
 else:
     device = torch.device('cpu')
 
-# === DATAFILES === #
-datafile = 'params/increasing.txt'
+# === PATHS === #
+datafile = '../params/increasing.txt'
+checkpoint_path = '../params/model_gnn_'
 
 # === CONSTANTS === #
 NFIBERS = 2000  # number of fibers
@@ -18,12 +19,12 @@ NFIELDS = 10    # number of GE fields
 TOTAL_TIME = 42 # per‑fiber time budget
 
 # === TRAINING PARAMETERS === #
-nepochs = 20_000
+nepochs = 40_000
 Fdim = 10 # lifted dimension
 lr = 5e-4 # learning rate
 pclass = 0.1 # penalty coefficient for class over-utilization
 pfiber = 0.1 # penalty coefficient for fiber over-utilization
 wutils = 2000.0
 wvar = 1.0
-sharps = [0.0, 10.0]
+sharps = [0.0, 20.0]
 min_sharp = 5.0

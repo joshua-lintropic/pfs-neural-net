@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import gnn
-from hyperparams import *
+from config import *
 
 """
 Module for converting fiber-galaxy index and property data into
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     BipartiteData graph, and saves to '../graphs/graph-<i>.pt'.
     """
     ngraph = 1
-    utils = np.loadtxt('../' + datafile)
+    utils = np.loadtxt(datafile)
     utils = np.hstack((utils, np.zeros((utils.shape[0], Fdim - utils.shape[1]))))
     
     for igraph in range(ngraph):

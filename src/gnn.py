@@ -2,7 +2,7 @@ import torch
 import torch_geometric
 import torch.nn.functional as F
 from torch_scatter import scatter, scatter_mean
-from params import *
+from config import *
 
 class BipartiteData(torch_geometric.data.Data):
     """
