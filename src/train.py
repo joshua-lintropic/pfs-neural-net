@@ -170,7 +170,7 @@ if __name__ == '__main__':
     with open('../figures/L_' + now + '.txt', 'w') as f:
         f.write(f'TIMESTAMP: {now}\n')
         f.write(f'Best: Loss={best_loss:.4e}, Utility={best_utility:.4f}\n')
-        f.write(f'Completions: {completions[:,nepochs-1]}\n')
+        f.write(f'Best Completion: {best_completion]}\n')
         f.write(f'Upper Bound on Min Class Completion (Utility): {upper_bound}\n')
 
     # === PLOT FINAL FIBER-TIME HISTOGRAM === #
