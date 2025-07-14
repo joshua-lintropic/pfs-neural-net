@@ -25,7 +25,7 @@ def softfloor(x, sharpness=20, noiselevel=0.3):
     r = torch.where(sharpness == 0, torch.tensor(0.0, device=x.device), torch.exp(-1/sharpness))
     return x + 1 / pi * (torch.arctan(r * torch.sin(2 * pi * x) / (1 - r * torch.cos(2 * pi * x))) - torch.arctan(r / (torch.ones_like(r) - r)))
 
-def loss_function(graph, class_info, pclass=0.1, pfiber=1.0, sharpness=0.5):
+def loss_function(graph, class_info, pclass=0.1, pfiber=1.0, sharpness=0.5, finaloutput=False):
     """
     time: [NCLASSES x NFIBERS], predicted t_{ik} for each fiber k, class i 
     properties: [NCLASSES, F_xt] where col1 is T_i and col2 is N_i
@@ -59,7 +59,6 @@ def loss_function(graph, class_info, pclass=0.1, pfiber=1.0, sharpness=0.5):
     overtime = fiber_time - TOTAL_TIME
     leaky = nn.LeakyReLU(negative_slope=0.1)
     fiber_penalty = pfiber * torch.sum(leaky(overtime)**2)
-    # fiber_penalty = pfiber * torch.linalg.vector_norm(overtime)
 
     # encourage variance 
     Time = time.reshape(NFIBERS, NCLASSES)
@@ -68,57 +67,14 @@ def loss_function(graph, class_info, pclass=0.1, pfiber=1.0, sharpness=0.5):
     # final loss
     loss = -wutils * totutils + fiber_penalty + class_penalty - wvar * variance
 
-    # optionally produce hard counts & diagnostics
-    utils = torch.min(completeness)
-    comp = (n_prime / N_i).detach().cpu().numpy()
-    fibers = fiber_time.detach().cpu().numpy()
-    return loss, utils, comp, n_prime, fibers, time, variance
-
-def hard_loss(graph, class_info, pclass=0.1, pfiber=1.0):
-    """
-    dupe of loss_function for getting actual hard counts
-    """
-    # unpack
-    src, tgt = graph.edge_index
-
-    # compute class‐wise soft visit counts 
-    T_i = class_info[:, 0] # required hours per visit for each class
-    T_i = T_i.unsqueeze(0).expand(NFIBERS, -1).reshape(-1)
-    N_i = class_info[:, 1] / NFIELDS # total number of galaxies in each class, per field
-    time = gnn.edge_prediction(graph.x_e, scale=TOTAL_TIME/NCLASSES).squeeze(-1)
-    visited = time / T_i
-
-    # compute number of observed galaxies
-    galaxies = torch.floor(visited)
-    n = scatter(galaxies, tgt, dim_size=NCLASSES, reduce='sum')
-    time = galaxies * T_i
-
-    # class‐completeness = n_i / N_i
-    completeness = n / N_i
-    totutils = torch.min(completeness)
-
-    # penalty on per-class overallocation
-    class_over = torch.relu(n - N_i)
-    class_penalty = pclass * torch.sum(class_over**2)
-
-    # penalty on per‐fiber overtime
-    fiber_time = scatter(time, src, dim_size=NFIBERS, reduce='sum')
-    overtime = fiber_time - TOTAL_TIME
-    leaky = nn.LeakyReLU(negative_slope=0.1)
-    fiber_penalty = pfiber * torch.sum(leaky(overtime)**2)
-
-    # encourage variance 
-    Time = time.reshape(NFIBERS, NCLASSES)
-    variance = torch.sum(torch.var(Time, dim=0))
-
-    # final loss
-    loss = -wutils * totutils + fiber_penalty + class_penalty - wvar * variance
-
-    # optionally produce hard counts & diagnostics
-    utils = torch.min(completeness)
-    comp = (n / N_i).detach().cpu().numpy()
-    fibers = fiber_time.detach().cpu().numpy()
-    return loss, utils, comp, n, fibers, time, variance
+    if finaloutput:
+        # optionally produce hard counts & diagnostics
+        utils = torch.min(completeness)
+        comp = (n_prime / N_i).detach().cpu().numpy()
+        fibers = fiber_time.detach().cpu().numpy()
+        return loss, utils, comp, n_prime, fibers, time, variance
+    else:
+        return loss, totutils
 
 if __name__ == '__main__':
     # compute setup
@@ -157,7 +113,7 @@ if __name__ == '__main__':
     completions = np.zeros((NCLASSES, nepochs))
     best_utility = 0.0
     best_loss = 0.0
-    best_time = np.zeros(NCLASSES * NFIBERS)
+    best_times = np.zeros(NCLASSES * NFIBERS)
     best_fiber_time = np.zeros(NFIBERS)
     best_completion = np.zeros(NCLASSES)
     variances = np.zeros(nepochs)
@@ -168,10 +124,7 @@ if __name__ == '__main__':
         gnn.zero_grad()
         graph_ = gnn(graph)
         sharp = sharps[0] + (sharps[1] - sharps[0]) * epoch / nepochs
-        loss, utility, completions[:,epoch], _, fiber_time, _, variance = loss_function(graph_, class_info, pclass=pclass, pfiber=pfiber, sharpness=sharp)
-        with torch.no_grad():
-            loss_, utility_, completions_, _, fiber_time_, time_, variance_ = hard_loss(graph_, class_info, pclass=pclass, pfiber=pfiber)
-            loss_ = loss_.item()
+        loss, utility, completions[:,epoch], _, fiber_time, time, variance = loss_function(graph_, class_info, pclass=pclass, pfiber=pfiber, sharpness=sharp, finaloutput=True)
         # update parameters
         loss.backward()
         optimizer.step()
@@ -179,11 +132,12 @@ if __name__ == '__main__':
         losses[epoch] = loss.item()
         objective[epoch] = utility
         variances[epoch] = variance
-        # update best
-        if utility_ >= best_utility:
-            with torch.no_grad():
-                best_loss, best_utility, best_completion, best_fiber_time, best_time, = \
-                    loss_, utility_, completions_, fiber_time_, time_
+        if utility > best_utility: 
+            best_loss = loss.item()
+            best_utility = utility
+            best_times = time
+            best_fiber_time = fiber_time
+            best_completion = completions[:,epoch]
     
     # write final results to output log
     now = datetime.now().strftime("%Y-%m-%d@%H-%M-%S")
@@ -237,7 +191,7 @@ if __name__ == '__main__':
     plt.savefig(fname=f'../figures/A_{now}.png', dpi=600)
 
     # === PLOT PER-CLASS COMPLETION RATES === #
-    cmap = plt.get_cmap('tab20', NCLASSES)
+    cmap = plt.get_cmap('viridis', NCLASSES)
     plots_class = []
     class_info = class_info.detach().cpu().numpy()
     for i in range(completions.shape[0]):
@@ -268,7 +222,7 @@ if __name__ == '__main__':
     fibers_slice = np.array(list(range(5)) + list(range(NFIBERS-5,NFIBERS)))
 
     def plot_fiber_actions(fibers, char):
-        dist = {k: best_time[k*NCLASSES:(k+1)*NCLASSES].detach().cpu().numpy() for k in fibers}
+        dist = {k: time[k*NCLASSES:(k+1)*NCLASSES].detach().cpu().numpy() for k in fibers}
         
         # # compute the max‐value per fiber for sorting
         # max_times = {k: dist[k].max() for k in fibers}
@@ -283,10 +237,10 @@ if __name__ == '__main__':
         left = np.hstack([np.zeros((data.shape[0],1)), cumulative[:,:-1]])
 
         # colormap
-        cmap = plt.get_cmap('tab20', NCLASSES)
+        cmap = plt.get_cmap('viridis', NCLASSES)
         colors = [cmap(i % cmap.N) for i in range(NCLASSES)]
 
-        _, ax = plt.subplots(figsize=(8, 6))
+        fig, ax = plt.subplots(figsize=(8, 6))
         y = np.arange(len(fibers))
         for cls in range(NCLASSES):
             ax.barh(

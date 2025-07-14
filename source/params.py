@@ -19,7 +19,7 @@ NFIELDS = 10    # number of GE fields
 TOTAL_TIME = 42 # per‑fiber time budget
 
 # === TRAINING PARAMETERS === #
-nepochs = 1_000
+nepochs = 20_000
 Fdim = 10 # lifted dimension
 lr = 5e-4 # learning rate
 pclass = 0.1 # penalty coefficient for class over-utilization
@@ -27,4 +27,3 @@ pfiber = 0.1 # penalty coefficient for fiber over-utilization
 wutils = 2000.0
 wvar = 1.0
 sharps = [0.0, 10.0]
-min_sharp = 5.0
