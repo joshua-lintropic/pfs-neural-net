@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import gnn
-from params import *
+from hyperparams import *
 
 """
 Module for converting fiber-galaxy index and property data into

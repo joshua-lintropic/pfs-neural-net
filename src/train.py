@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from torch_scatter import scatter
 from gnn import GNN, BipartiteData
-from params import *
+from hyperparams import *
 
 import matplotlib.pyplot as plt
 from datetime import datetime

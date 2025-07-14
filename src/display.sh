@@ -1,6 +1,6 @@
-open -a Preview ../figures/"$(ls -1 ../figures/A_* | sort -r | head -n 1)"
-open -a Preview ../figures/"$(ls -1 ../figures/B_* | sort -r | head -n 1)"
-open -a Preview ../figures/"$(ls -1 ../figures/C_* | sort -r | head -n 1)"
-open -a Preview ../figures/"$(ls -1 ../figures/D_* | sort -r | head -n 1)"
-open -a Preview ../figures/"$(ls -1 ../figures/E_* | sort -r | head -n 1)"
+open -a Preview ../figures/"$(ls -1 ../figures/A* | sort -r | head -n 1)"
+open -a Preview ../figures/"$(ls -1 ../figures/B* | sort -r | head -n 1)"
+open -a Preview ../figures/"$(ls -1 ../figures/C* | sort -r | head -n 1)"
+open -a Preview ../figures/"$(ls -1 ../figures/D* | sort -r | head -n 1)"
+open -a Preview ../figures/"$(ls -1 ../figures/E* | sort -r | head -n 1)"
 

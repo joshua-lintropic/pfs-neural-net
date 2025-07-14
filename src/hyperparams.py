@@ -9,8 +9,7 @@ else:
     device = torch.device('cpu')
 
 # === DATAFILES === #
-datafile = 'data/increasing.txt'
-logfile = 'models/log.txt'
+datafile = 'params/increasing.txt'
 
 # === CONSTANTS === #
 NFIBERS = 2000  # number of fibers
