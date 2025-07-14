@@ -59,6 +59,7 @@ def loss_function(graph, class_info, pclass=0.1, pfiber=1.0, sharpness=0.5):
     overtime = fiber_time - TOTAL_TIME
     leaky = nn.LeakyReLU(negative_slope=0.1)
     fiber_penalty = pfiber * torch.sum(leaky(overtime)**2)
+    # fiber_penalty = pfiber * torch.linalg.vector_norm(overtime)
 
     # encourage variance 
     Time = time.reshape(NFIBERS, NCLASSES)
@@ -168,6 +169,9 @@ if __name__ == '__main__':
         graph_ = gnn(graph)
         sharp = sharps[0] + (sharps[1] - sharps[0]) * epoch / nepochs
         loss, utility, completions[:,epoch], _, fiber_time, _, variance = loss_function(graph_, class_info, pclass=pclass, pfiber=pfiber, sharpness=sharp)
+        with torch.no_grad():
+            loss_, utility_, completions_, _, fiber_time_, time_, variance_ = hard_loss(graph_, class_info, pclass=pclass, pfiber=pfiber)
+            loss_ = loss_.item()
         # update parameters
         loss.backward()
         optimizer.step()
@@ -176,11 +180,10 @@ if __name__ == '__main__':
         objective[epoch] = utility
         variances[epoch] = variance
         # update best
-        if not (utility > best_utility and sharp >= min_sharp):
-            continue
-        with torch.no_grad():
-            best_loss, best_utility, best_completion, _, best_fiber_time, best_time, _ = hard_loss(graph_, class_info, pclass=pclass, pfiber=pfiber)
-            best_loss = best_loss.item()
+        if utility_ >= best_utility:
+            with torch.no_grad():
+                best_loss, best_utility, best_completion, best_fiber_time, best_time, = \
+                    loss_, utility_, completions_, fiber_time_, time_
     
     # write final results to output log
     now = datetime.now().strftime("%Y-%m-%d@%H-%M-%S")
