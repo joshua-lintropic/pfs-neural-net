@@ -132,7 +132,7 @@ if __name__ == '__main__':
         losses[epoch] = loss.item()
         objective[epoch] = utility
         variances[epoch] = variance
-        if utility > best_utility: 
+        if utility > best_utility and sharp > min_sharp: 
             best_loss = loss.item()
             best_utility = utility
             best_time = time
@@ -221,46 +221,62 @@ if __name__ == '__main__':
     fibers_rand = np.random.randint(low=0, high=NFIBERS, size=(10,))
     fibers_slice = np.array(list(range(5)) + list(range(NFIBERS-5,NFIBERS)))
 
+    class_req = class_info[:, 0]
+
     def plot_fiber_actions(fibers, char):
-        dist = {k: best_time[k*NCLASSES:(k+1)*NCLASSES].detach().cpu().numpy() for k in fibers}
-        
-        # # compute the max‐value per fiber for sorting
-        # max_times = {k: dist[k].max() for k in fibers}
-        # sorted_fibers = sorted(fibers, key=lambda k: max_times[k], reverse=True)
+        # build a dict of raw times for each fiber
+        dist = {k: best_time[k * NCLASSES:(k + 1) * NCLASSES].detach().cpu().numpy() for k in fibers}
 
-        # build a 2D array of shape (NFIBERS, NCLASSES)
-        data = np.vstack([dist[k] for k in fibers])
+        # stack into 2D array: rows = fibers, cols = classes
+        raw_data = np.vstack([dist[k] for k in fibers])
 
-        # cumulative sums for stacked offsets
-        cumulative = np.cumsum(data, axis=1)
-        # `left`` is zero for the first class, then previous cumulated for others
-        left = np.hstack([np.zeros((data.shape[0],1)), cumulative[:,:-1]])
+        # 1) Round up each allocation to nearest multiple of time requirement
+        rounded = np.round(raw_data / class_req) * class_req
 
-        # colormap
-        cmap = plt.get_cmap('viridis', NCLASSES)
-        colors = [cmap(i % cmap.N) for i in range(NCLASSES)]
+        # compute offsets for stacked bar
+        cumulative = np.cumsum(rounded, axis=1)
+        left = np.hstack([np.zeros((rounded.shape[0], 1)), cumulative[:, :-1]])
 
+        # prepare plot
         fig, ax = plt.subplots(figsize=(8, 6))
         y = np.arange(len(fibers))
+        height = 0.8
+
+        cmap = plt.get_cmap('viridis', NCLASSES)
         for cls in range(NCLASSES):
             ax.barh(
                 y,
-                data[:, cls],
+                rounded[:, cls],
                 left=left[:, cls],
-                height=0.8,
-                color=colors[cls],
-                label=f'Class {cls+1}'
+                height=height,
+                color=cmap(cls),
+                edgecolor='none',
+                label=f'Class {cls + 1}'
             )
+
+            # 2) demarcate individual targets with lines
+            for i, fiber in enumerate(fibers):
+                n_targets = round(rounded[i, cls] / class_req[cls])
+                for m in range(1, n_targets):
+                    x = left[i, cls] + m * class_req[cls]
+                    ax.vlines(
+                        x,
+                        y[i] - height/2,
+                        y[i] + height/2,
+                        colors='white',
+                        linestyles='--',
+                        linewidth=0.8
+                    )
 
         # formatting
         ax.set_yticks(y)
         ax.set_yticklabels(fibers)
         ax.invert_yaxis()
-        ax.set_xlabel('Time')
-        ax.set_title('Fiber Class-Times')
+        ax.set_xlabel('Time (hours)')
+        ax.set_title('Fiber Class-Times (rounded & segmented)')
         ax.legend(loc='best', bbox_to_anchor=(1, 0.5))
         plt.tight_layout()
         plt.savefig(f'../figures/{char}_{now}.png', dpi=600)
-    
+
     plot_fiber_actions(fibers_rand, 'D')
     plot_fiber_actions(fibers_slice, 'E')

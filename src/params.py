@@ -27,3 +27,4 @@ pfiber = 0.1 # penalty coefficient for fiber over-utilization
 wutils = 2000.0
 wvar = 1.0
 sharps = [0.0, 10.0]
+min_sharp = 5.0
