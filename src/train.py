@@ -126,6 +126,7 @@ if __name__ == '__main__':
     model_path = sys.argv[1] if len(sys.argv) > 1 else ""
     if model_path:
         checkpoint = torch.load(model_path, map_location=device)
+        print(checkpoint.keys())
         gnn.load_state_dict(checkpoint['model_state'])
         optimizer.load_state_dict(checkpoint['optim_state'])
         start_epoch = checkpoint['epoch'] + 1
@@ -170,7 +171,7 @@ if __name__ == '__main__':
     with open('../figures/L_' + now + '.txt', 'w') as f:
         f.write(f'TIMESTAMP: {now}\n')
         f.write(f'Best: Loss={best_loss:.4e}, Utility={best_utility:.4f}\n')
-        f.write(f'Best Completion: {best_completion]}\n')
+        f.write(f'Best Completion: {best_completion}\n')
         f.write(f'Upper Bound on Min Class Completion (Utility): {upper_bound}\n')
 
     # === PLOT FINAL FIBER-TIME HISTOGRAM === #
@@ -218,7 +219,7 @@ if __name__ == '__main__':
     class_info = class_info.detach().cpu().numpy()
     for i in range(completions.shape[0]):
         plots_class.append(
-            (epochs, completions[i], rf'Class {i+1} ($N_{{{i}}} = {int(class_info[i][1])}$)', cmap(i % cmap.N))
+            (epochs, completions[i], rf'Class {i+1} ($T_{{{i}}} = {int(class_info[i][0])}$, $N_{{{i}}} = {int(class_info[i][1])}$)', cmap(i % cmap.N))
         )
     ncols = 2
     nrows = (NCLASSES + ncols - 1) // ncols
